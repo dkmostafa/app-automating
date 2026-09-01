@@ -25,6 +25,8 @@ from fastmcp import FastMCP
 
 from modules.android_module.application.di import android_emulator_service
 from modules.android_module.presentation import register_android_emulator_tools
+from modules.appium_module.application.di import appium_device_service
+from modules.appium_module.presentation import register_appium_device_tools
 
 
 class StdioOnlyMCP(FastMCP):
@@ -49,10 +51,17 @@ async def lifespan(server: FastMCP) -> AsyncIterator[None]:
     the handle. A deployment that wants emulators to survive the server swaps
     ``android_emulator_service()`` for ``build_android_emulator_service()`` and
     loses only the cleanup.
+
+    The nesting order matters on the way out. ``appium`` is entered last and so
+    exits first: its sessions and its managed server are torn down while the
+    emulators they were driving are still up. Closing the devices first would
+    leave every session quitting against a device that had already gone.
     """
     async with android_emulator_service() as android:
         register_android_emulator_tools(server, android)
-        yield
+        async with appium_device_service() as appium:
+            register_appium_device_tools(server, appium)
+            yield
 
 
 mcp = StdioOnlyMCP("agentic-testing", lifespan=lifespan)
