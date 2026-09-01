@@ -1,0 +1,52 @@
+[project]
+name = "agentic-testing"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "appium-python-client>=6.0.0",
+    "fastmcp>=3.4.7",
+    "pydantic>=2.13.5",
+    "pydantic-settings>=2.15.0",
+    "sqlalchemy>=2.0.52",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "pytest-html>=4.2.0",
+    "pytest-rerunfailures>=16.6",
+    "pytest-timeout>=2.4.0",
+    "pytest-xdist>=3.8.0",
+    "ruff>=0.16.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# The import root is src/; the distributed package is modules/.
+packages = ["src/modules"]
+
+[tool.pytest.ini_options]
+# pytest-asyncio 1.x: without this, every async test needs an explicit marker.
+asyncio_mode = "auto"
+# Colocated tests import their module as modules.<pkg>...; src is the import root.
+pythonpath = ["src"]
+# Tests are colocated with the code they cover; there is no top-level tests/.
+testpaths = ["src"]
+markers = [
+    "unit: no device, no network, no real DB file",
+    "integration: drives the real thing -- real files, real host tools, real devices",
+]
+addopts = "-ra --strict-markers --strict-config"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

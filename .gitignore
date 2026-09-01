@@ -1,0 +1,46 @@
+# python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# tooling caches and test reports
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+# pytest-xdist writes one coverage file per worker
+.coverage.*
+coverage.xml
+htmlcov/
+# pytest-html
+report.html
+
+# project data: the graph db and captured screenshots are local artifacts
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# module-local runtime data
+.data/
+
+# local config: .env holds the real values, .env.example is the tracked
+# template every setting is documented in
+.env
+.env.*
+!.env.example
+
+# editors and OS
+.idea/
+.vscode/
+.DS_Store
+
+# Claude Code: CLAUDE.md and .claude/rules/ are project instructions and stay
+# tracked; the permission grants below them are per-developer
+.claude/settings.local.json
+.claude/settings.local.json.bak
