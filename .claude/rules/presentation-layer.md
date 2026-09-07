@@ -1,36 +1,36 @@
 # Rule 3 — The presentation layer and the MCP surface
 
 Status: active. Applies to every module's `presentation/` package and to
-`src/index.py`. Enforced by `<module>/tests/unit/test_architecture.py`, not by
+`src/app_automating/server.py`. Enforced by `<module>/tests/unit/test_architecture.py`, not by
 review.
 
 Rule 0 says `presentation/` is the outermost ring and may import `domain/` and
 `application/` but never `infrastructure/`. This rule says what goes in that
 ring: **each module exposes its own set of MCP tools from its own presentation
-layer, and `src/index.py` imports and registers them.** A module that has tools
+layer, and `src/app_automating/server.py` imports and registers them.** A module that has tools
 owns them end to end — their names, their signatures, their descriptions, their
-error translation. `index.py` owns only the server.
+error translation. `server.py` owns only the server.
 
 ---
 
-## 1. `src/index.py` is the server, and nothing else
+## 1. `src/app_automating/server.py` is the server, and nothing else
 
 ```python
-# src/index.py
-mcp = StdioOnlyMCP("agentic-testing")
+# src/app_automating/server.py
+mcp = StdioOnlyMCP("app-automating")
 
 # one import and one call per module, in alphabetical order
 register_android_tools(mcp, android_service)
 ```
 
-* `index.py` holds the single `FastMCP` instance, pins STDIO, and registers each
+* `server.py` holds the single `FastMCP` instance, pins STDIO, and registers each
   module's tools. **It defines no tool of its own** — a `@mcp.tool` written in
-  `index.py` is a module's presentation layer that never got written.
+  `server.py` is a module's presentation layer that never got written.
 * It contains no business logic, no parsing, no rendering, no error handling.
 * Adding a module to the product is **one import plus one `register_*` call**.
   If it takes more than that, the module's presentation layer is doing too
   little.
-* `index.py` is the process-wide composition root: it calls each module's
+* `server.py` is the process-wide composition root: it calls each module's
   `application/di.py` to build the services, inside the server's lifespan, so
   shutdown can close adapters that own processes (`await manager.aclose()`).
   It never imports a module's `infrastructure/`, and never constructs an adapter
@@ -65,13 +65,13 @@ def register_android_tools(mcp: FastMCP, service: AndroidEmulatorService) -> Non
   services**, and returns `None`.
 * It **never builds its collaborators**. No `build_android_emulator_service()`
   inside `presentation/`, no reading the environment, no `AndroidSdkConfig`.
-  Composition happens in `di.py`, called by `index.py` (Rule 0 §4).
+  Composition happens in `di.py`, called by `server.py` (Rule 0 §4).
 * It registers tools and does nothing else — no side effects, no logging setup,
   no global state. Calling it twice against two servers must be safe, which is
   what lets a test register into a throwaway `FastMCP`.
 * One module may have several register functions when it has several surfaces
   (`register_android_emulator_tools`, `register_android_app_tools`); each is
-  exported from `__init__.py` and called separately from `index.py`.
+  exported from `__init__.py` and called separately from `server.py`.
 
 ## 3. Tool names are module-prefixed, always
 
@@ -239,5 +239,5 @@ needs no SDK:
   each with a non-empty body;
 * the **Arguments** section names every parameter in the tool's
   `inspect.signature`, and names no parameter that is not in it;
-* `src/index.py` calls a register function for every module that exports one —
+* `src/app_automating/server.py` calls a register function for every module that exports one —
   a module whose tools were never registered fails the suite.

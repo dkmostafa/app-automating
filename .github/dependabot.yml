@@ -1,0 +1,39 @@
+version: 2
+
+updates:
+  # Python dependencies, read from pyproject.toml and uv.lock.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "deps"
+    groups:
+      # The test toolchain moves together and is never the reason a user is
+      # broken, so it arrives as one PR rather than seven.
+      dev-tooling:
+        patterns:
+          - "pytest*"
+          - "ruff"
+        update-types: ["minor", "patch"]
+      # Runtime patch bumps likewise. Majors and minors stay separate: fastmcp,
+      # appium-python-client and sqlalchemy are the three that can change
+      # behaviour under this code, and each deserves its own review.
+      runtime-patch:
+        patterns: ["*"]
+        exclude-patterns:
+          - "pytest*"
+          - "ruff"
+        update-types: ["patch"]
+
+  # The actions used by .github/workflows/ci.yml.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "ci"

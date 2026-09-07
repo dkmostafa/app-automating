@@ -1,9 +1,9 @@
 # Rule 1 — The infrastructure layer
 
 Status: active. Reference implementation:
-`src/modules/android_module/infrastructure/android_emulator_manager/`
+`src/app_automating/modules/android_module/infrastructure/android_emulator_manager/`
 and its tests at
-`src/modules/android_module/infrastructure/tests/integration/test_android_emulator_manager.py`.
+`src/app_automating/modules/android_module/infrastructure/tests/integration/test_android_emulator_manager.py`.
 
 The infrastructure layer is where the process touches things it does not
 control: host binaries, devices, sockets, the filesystem, the clock. Everything

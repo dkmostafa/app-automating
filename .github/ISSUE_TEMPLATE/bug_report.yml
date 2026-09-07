@@ -1,0 +1,109 @@
+name: Bug report
+description: Something behaves differently from what its tool docstring says.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This server is a remote control for the Android SDK and Appium, so most
+        failures depend on the host it ran on. The host section below is what
+        makes a report reproducible — please fill it in even if the bug looks
+        obviously unrelated to the toolchain.
+
+        For a security issue, do **not** open an issue — see
+        [SECURITY.md](https://github.com/dkmostafa/app-automating/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+      placeholder: |
+        I called appium_type_text without a locator and expected ...
+        Instead it ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: >
+        The tool calls in order, with their arguments. If you can reproduce it
+        from a shell instead of through an MCP client, that is even better.
+      placeholder: |
+        1. android_run_emulator(avd_name="Pixel_7")
+        2. appium_start_session(device_id="emulator-5554")
+        3. appium_type_text(session_id="...", text="hello")
+    validations:
+      required: true
+
+  - type: textarea
+    id: error
+    attributes:
+      label: The error, in full
+      description: >
+        The whole message or traceback, not a summary. If it came back as a
+        ToolError, paste the message the tool returned.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: app-automating version
+      description: >
+        From `uv tool list` or `pip show app-automating`, or the commit you are
+        on if you run from a clone. (There is no `--version` flag: any argument
+        is ignored and the server starts.)
+      placeholder: "0.1.0, or commit abc1234"
+    validations:
+      required: true
+
+  - type: textarea
+    id: host
+    attributes:
+      label: Host
+      description: |
+        Please run these and paste the output. Every one of them has been the
+        answer to a bug at some point.
+      value: |
+        <!-- fill in / paste output -->
+        OS:                    (e.g. Ubuntu 24.04, macOS 15.1)
+        Python:                $ python --version
+        MCP client:            (Claude Code / Claude Desktop / Cursor / other)
+
+        $ adb --version
+        $ emulator -version | head -1
+        $ appium --version
+        $ appium driver list --installed
+        $ node --version
+
+        Device:                (emulator or physical, API level, ABI)
+        Hardware acceleration: (KVM / HAXM / Hypervisor.Framework / none)
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Relevant AT_ settings
+      description: >
+        Any `AT_*` variable you set away from its default, plus
+        `ANDROID_SDK_ROOT`. Redact paths you would rather not share.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: "`uv run pytest -m unit` passes on my clone (or I am not working from a clone)"
+          required: false
+        - label: I called `appium_check_environment` and it reported the host as ready
+          required: false
+        - label: I searched existing issues
+          required: true

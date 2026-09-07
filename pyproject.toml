@@ -1,7 +1,23 @@
 [project]
-name = "agentic-testing"
+name = "app-automating"
 version = "0.1.0"
+description = "An MCP server that drives Android emulators and real devices, and remembers how it got there."
+readme = "README.md"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "dkmostafa" }]
+keywords = ["mcp", "android", "appium", "emulator", "testing", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = [
     "aiosqlite>=0.22.1",
     "appium-python-client>=6.0.0",
@@ -23,13 +39,36 @@ dev = [
     "ruff>=0.16.5",
 ]
 
+[project.urls]
+Homepage = "https://github.com/dkmostafa/app-automating"
+Repository = "https://github.com/dkmostafa/app-automating"
+Issues = "https://github.com/dkmostafa/app-automating/issues"
+
+# The console script an MCP client launches. `app-automating` with no arguments
+# serves the tools over STDIO and speaks nothing else -- see src/app_automating/server.py.
+[project.scripts]
+app-automating = "app_automating.server:run"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-# The import root is src/; the distributed package is modules/.
-packages = ["src/modules"]
+# One package, one name in site-packages. The import root is src/, and
+# everything that ships lives under `app_automating/` -- modules/ is a
+# subpackage of it rather than a top-level name of its own, because a
+# distribution that claims `modules` in site-packages collides with the world.
+packages = ["src/app_automating"]
+# Tests are colocated with the code (Rule 2 §1), which is right for the repo and
+# wrong for the wheel: an installing user gets no value from a suite that wants
+# a real emulator, and they should not pay to download it.
+exclude = ["**/tests/**"]
+
+[tool.hatch.build.targets.sdist]
+# The sdist carries what it takes to develop and verify the project, so the
+# tests stay in: a source distribution nobody can run the suite against is not
+# a source distribution.
+include = ["src/", "README.md", "LICENSE", "CLAUDE.md", ".claude/rules/", "pyproject.toml"]
 
 # This is the project's only pytest configuration. There is deliberately no
 # pytest.ini and no setup.cfg: pytest reads exactly one of them, and a second
@@ -40,9 +79,9 @@ packages = ["src/modules"]
 #   uv run pytest -m integration   the real toolchain: adb, avdmanager, Appium, a boot
 #   uv run pytest -m "not integration"
 #                                  what a machine with no Android SDK can run
-#   uv run pytest src/modules/android_module
+#   uv run pytest src/app_automating/modules/android_module
 #                                  one module, both kinds
-#   uv run pytest src/modules/<m>/tests/unit/test_architecture.py
+#   uv run pytest src/app_automating/modules/<m>/tests/unit/test_architecture.py
 #                                  the layer rules for one module, on any host
 #
 # Every test file carries `pytestmark` matching the directory it sits in, so the

@@ -10,12 +10,12 @@ below it: where Rule 1 tells you *how to build an adapter*, this rule tells you
 
 ## 1. The four layers, and the direction dependencies point
 
-Every module under `src/modules/` is a vertical slice of the product, and every
+Every module under `src/app_automating/modules/` is a vertical slice of the product, and every
 module has the same four layers. Not three, not five, and not a different set
 per module:
 
 ```
-src/modules/<name>_module/
+src/app_automating/modules/<name>_module/
 ├── domain/           the business logic: entities, value objects, PORTS, and
 │                     the use cases that orchestrate them. Zero I/O.
 ├── infrastructure/   the adapters: host tools, devices, filesystem, clock, DB

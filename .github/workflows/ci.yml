@@ -1,0 +1,124 @@
+name: CI
+
+# A GitHub runner has no Android SDK, no Appium and no device, so this workflow
+# runs the unit and architecture tests only. That is not a gap being tolerated:
+# the architecture tests are the ones that enforce the layer rules, and they are
+# designed to pass on a bare machine. The integration suite drives real hardware
+# and stays the developer's to run -- see CONTRIBUTING.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: ruff check
+        run: uv run ruff check src main.py script.py
+
+      - name: ruff format --check
+        run: uv run ruff format --check src main.py script.py
+
+  test:
+    name: pytest -m unit (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Unit and architecture tests
+        run: uv run pytest -m unit
+
+  build:
+    name: build & verify the wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Check the metadata renders on PyPI
+        run: uvx twine check dist/*
+
+      # The four things that were once wrong about this wheel, asserted so they
+      # cannot silently come back: it must ship the server, expose the console
+      # script, claim exactly one top-level name, and carry no tests.
+      - name: Verify what the wheel actually contains
+        run: |
+          python - <<'PY'
+          import pathlib, sys, zipfile
+
+          wheel = next(pathlib.Path("dist").glob("*.whl"))
+          names = zipfile.ZipFile(wheel).namelist()
+          # Everything a wheel may hold at the top: the package, and the
+          # metadata directory whose name carries the version.
+          top = {n.split("/")[0] for n in names} - {"__pycache__"}
+          packages = {n for n in top if not n.endswith(".dist-info")}
+          problems = []
+
+          if not any(n.endswith("app_automating/server.py") for n in names):
+              problems.append("the server module is not in the wheel")
+          if not any(n.endswith("entry_points.txt") for n in names):
+              problems.append("no console script is declared")
+          if packages != {"app_automating"}:
+              problems.append(f"expected exactly one package, got: {sorted(packages)}")
+          if any("/tests/" in n for n in names):
+              problems.append("tests are being shipped to users")
+
+          for problem in problems:
+              print(f"::error::{problem}")
+          sys.exit(1 if problems else 0)
+          PY
+
+      - name: Confirm the installed console script starts
+        run: |
+          uv tool install --from dist/*.whl app-automating
+          # The server blocks on STDIO waiting for a client, so an immediate EOF
+          # is a clean start-and-exit rather than a hang.
+          echo -n "" | timeout 30 app-automating
+          echo "the console script started and exited cleanly"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

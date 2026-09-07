@@ -13,20 +13,20 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Before any `modules.` import: `uv run` installs the package, but a bare
+# Before any `app_automating` import: `uv run` installs the package, but a bare
 # `python script.py` does not, and this script should work either way.
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from modules.android_module.application import (  # noqa: E402
+from app_automating.modules.android_module.application import (  # noqa: E402
     build_android_emulator_manager,
 )
-from modules.android_module.domain import (  # noqa: E402
+from app_automating.modules.android_module.domain import (  # noqa: E402
     AndroidDevice,
     ListDevicesRequest,
     StartEmulatorRequest,
     StartEmulatorResult,
 )
-from modules.android_module.infrastructure.android_emulator_manager import (  # noqa: E402
+from app_automating.modules.android_module.infrastructure.android_emulator_manager import (  # noqa: E402
     AndroidEmulatorManager,
 )
 

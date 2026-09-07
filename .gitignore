@@ -25,6 +25,9 @@ data/
 *.db
 *.db-wal
 *.db-shm
+# screenshots dropped in the repo root by a hand-driven session; the tool writes
+# them wherever it is told, and the root is nobody's deliberate choice
+/screenshot_*.png
 
 # module-local runtime data
 .data/

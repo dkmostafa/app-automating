@@ -1,7 +1,10 @@
-# agentic-testing
+# app-automating
 
-Agentic mobile-testing MCP server. Capabilities live under `src/modules/`, one
-package per surface (`android_module`, ...), each split into layers.
+Agentic mobile-testing MCP server. Capabilities live under
+`src/app_automating/modules/`, one package per surface (`android_module`, ...),
+each split into layers. `src/app_automating/` is the distribution package: it is
+the single name the wheel puts into `site-packages`, and `server.py` sits beside
+`modules/` inside it.
 
 ## Layout
 
@@ -9,7 +12,7 @@ Every module has the same four layers -- no module has three, and none invents
 a fifth:
 
 ```
-src/modules/<name>_module/
+src/app_automating/modules/<name>_module/
 ├── domain/                         # BUSINESS LOGIC. no I/O, no frameworks.
 │   ├── models.py                   # entities and the *Request / *Result DTOs
 │   ├── errors.py                   # the failure vocabulary use cases catch
@@ -67,7 +70,7 @@ with a fixed direction of dependency:
 `di.py` -- a **service** is written against the domain's ports and never imports
 `infrastructure`. `presentation` must never reach past the application layer
 into `infrastructure` either. Each module exposes its own MCP tools from its
-presentation layer; `src/index.py` is the server -- it owns the single STDIO
+presentation layer; `src/app_automating/server.py` is the server -- it owns the single STDIO
 `FastMCP` instance, builds each module's services through that module's `di.py`,
 registers the module's tools, and defines no tool of its own (Rule 3). Every port is declared by the layer that *calls* it rather than
 the one that implements it, and collaborators are injected at a single

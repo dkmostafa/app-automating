@@ -1,0 +1,72 @@
+name: Feature request
+description: A tool, a capability, or a module that does not exist yet.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Capabilities here arrive as **tools** on a module, or as a new module.
+        Both have a shape the project holds to — see
+        [CONTRIBUTING.md](https://github.com/dkmostafa/app-automating/blob/main/CONTRIBUTING.md)
+        — so the questions below are asking where your idea fits, not just what
+        it does.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: >
+        The task, not the solution. "I want to verify a push notification
+        arrived" tells us more than "add a getNotifications tool", because there
+        may already be a way.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: Which surface does this belong to
+      options:
+        - android (emulators, AVDs, the SDK)
+        - appium (driving the screen of a device)
+        - navigation_memory (what was learned about an app)
+        - a new module
+        - not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What the tool would look like
+      description: >
+        A name (`<module>_<operation>`), its arguments, and what it returns. A
+        rough sketch is fine — the point is to agree on the surface before
+        anyone writes the docstring.
+      placeholder: |
+        android_install_apk(device_id: str, apk_path: str) -> dict
+        -> {"device_id": "emulator-5554", "package": "com.example", "installed": true}
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: >
+        Which existing tools you used, and where they fell short. If the answer
+        is "it works but takes five calls", say that — it is a good reason.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the tool list in the README for something that already does this
+          required: true
+        - label: I searched existing issues
+          required: true
+        - label: I would be willing to open a PR for it
+          required: false
