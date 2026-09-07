@@ -1,15 +1,40 @@
 name: Release
 
-# Publishes to PyPI when a `v*` tag is pushed.
+# Two ways in, one way out.
+#
+#   push to main   -> bump the version, tag it, publish it. Continuous delivery.
+#   push a v* tag  -> publish exactly that tag. The manual escape hatch, and how
+#                     a release is re-run after fixing something on PyPI's side.
 #
 # Authentication is PyPI Trusted Publishing (OIDC): GitHub mints a short-lived
 # token for this exact workflow in this exact repository, and PyPI accepts it
 # because you told PyPI to. There is no API token in the repository secrets,
 # which means there is none to leak, rotate or accidentally print. Setting it up
 # is a one-time step on PyPI -- see the checklist in CONTRIBUTING.md.
+#
+# On recursion: the `bump` job pushes a commit and a tag using the default
+# GITHUB_TOKEN, and GitHub deliberately does not start new workflow runs from
+# anything that token pushes. That is what makes this safe, and it is also why
+# the tag it creates cannot trigger this file a second time -- so the same run
+# carries straight on to the publish jobs rather than waiting for a trigger that
+# will never come.
 
 on:
   push:
+    branches: [main]
+    # A README typo must not burn a version number on PyPI. Anything listed here
+    # never starts a run at all, so it costs nothing.
+    #
+    # Note this filter also applies to tag pushes: a hand-tagged commit that
+    # touched only docs will not publish. That is the right default, and
+    # `workflow_dispatch` is there when you need to force one.
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
+      - ".gitignore"
+      - ".env.example"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".claude/**"
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -24,11 +49,115 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: build & check
+  bump:
+    name: bump the version
+    # Only for a push to a branch. A tag push already says which version it is,
+    # and a manual dispatch publishes whatever is currently committed.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # to push the bump commit and its tag
+    outputs:
+      tag: ${{ steps.compute.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The full history, because the bump reads the current version from
+          # the file and the tag list from the repository.
+          fetch-depth: 0
+
+      - name: Decide the next version, write it, tag it
+        id: compute
+        env:
+          # Via the environment rather than inline `${{ }}`, so a commit message
+          # containing a quote or a backtick is data and never shell syntax.
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+
+          new_version="$(python3 - <<'PY'
+          import os, pathlib, re
+
+          init = pathlib.Path("src/app_automating/__init__.py")
+          source = init.read_text()
+          match = re.search(r'^__version__ = "(\d+)\.(\d+)\.(\d+)"$', source, re.M)
+          if match is None:
+              raise SystemExit("::error::could not find __version__ in " + str(init))
+          major, minor, patch = (int(part) for part in match.groups())
+
+          # Patch is the default because it is the safe answer: a release that
+          # should have been a minor is a cosmetic mistake, one that should have
+          # been a patch is a lie about compatibility.
+          message = os.environ.get("COMMIT_MESSAGE", "").lower()
+          if "#major" in message:
+              major, minor, patch = major + 1, 0, 0
+          elif "#minor" in message:
+              minor, patch = minor + 1, 0
+          else:
+              patch += 1
+
+          version = f"{major}.{minor}.{patch}"
+          init.write_text(
+              re.sub(r'^__version__ = "[^"]+"$', f'__version__ = "{version}"', source, count=1, flags=re.M)
+          )
+          print(version)
+          PY
+          )"
+
+          echo "next version: $new_version"
+
+          if git rev-parse "v$new_version" >/dev/null 2>&1; then
+            echo "::error::tag v$new_version already exists; bump __version__ by hand and push again"
+            exit 1
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app_automating/__init__.py
+          # [skip ci] is belt and braces: a GITHUB_TOKEN push does not start a
+          # run anyway, but this survives someone later swapping in a PAT.
+          git commit -m "chore(release): v$new_version [skip ci]"
+          git tag -a "v$new_version" -m "v$new_version"
+          git push origin HEAD:"${GITHUB_REF_NAME}"
+          git push origin "v$new_version"
+
+          echo "tag=v$new_version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build & check
+    needs: bump
+    # `bump` is skipped for a tag push and a manual dispatch, and a skipped
+    # dependency would otherwise skip this job too.
+    if: >-
+      !cancelled()
+      && (needs.bump.result == 'success' || needs.bump.result == 'skipped')
+    runs-on: ubuntu-latest
+    outputs:
+      # The tag this run is releasing, whoever decided it. Every job below reads
+      # it from here rather than re-deriving it from github.ref, which is
+      # `refs/heads/main` on the continuous-delivery path and would be wrong.
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Which tag is this run releasing
+        id: resolve
+        run: |
+          set -euo pipefail
+          if [ -n "${{ needs.bump.outputs.tag }}" ]; then
+            tag="${{ needs.bump.outputs.tag }}"          # bumped just now
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"                     # a hand-pushed tag
+          else
+            tag=""                                       # manual dispatch
+          fi
+          echo "releasing: ${tag:-<current commit, untagged>}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          # Check out the tag when there is one -- on the push-to-main path the
+          # bump commit is newer than the SHA that triggered this run, and
+          # building the trigger's SHA would ship the *old* version number.
+          ref: ${{ steps.resolve.outputs.tag || github.sha }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -40,16 +169,21 @@ jobs:
 
       # The version lives in src/app_automating/__init__.py and nowhere else.
       # A tag that disagrees with it would publish a wheel whose number does not
-      # match the commit it came from, so it fails here instead.
+      # match the commit it came from, so it fails here instead. On the
+      # push-to-main path this also proves the bump job wrote what it says it
+      # wrote, and that the checkout above landed on the bumped commit.
       - name: The tag and the package must agree on the version
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.resolve.outputs.tag != ''
+        env:
+          RELEASE_TAG: ${{ steps.resolve.outputs.tag }}
         run: |
-          tagged="${GITHUB_REF_NAME#v}"
+          set -euo pipefail
+          tagged="${RELEASE_TAG#v}"
           packaged="$(uv run python -c 'import app_automating; print(app_automating.__version__)')"
           echo "tag says      $tagged"
           echo "package says  $packaged"
           if [ "$tagged" != "$packaged" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match __version__ $packaged"
+            echo "::error::tag $RELEASE_TAG does not match __version__ $packaged"
             exit 1
           fi
 
@@ -137,14 +271,16 @@ jobs:
 
   github-release:
     name: attach the artifacts to the tag
-    needs: pypi
+    needs: [build, pypi]
     runs-on: ubuntu-latest
-    # Only a tag has something to attach to, and only a real PyPI publish is
-    # worth announcing -- so this stays skipped for a TestPyPI rehearsal.
+    # Gated on the *resolved* tag, not on github.ref: on the push-to-main path
+    # github.ref is `refs/heads/main` even though this run really is releasing a
+    # tag, and testing it would skip every automated release. An untagged manual
+    # dispatch has nothing to attach to and correctly yields an empty string.
     if: >-
       !cancelled()
       && needs.pypi.result == 'success'
-      && startsWith(github.ref, 'refs/tags/v')
+      && needs.build.outputs.tag != ''
     permissions:
       contents: write
     steps:
@@ -156,8 +292,9 @@ jobs:
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
+          gh release create "$RELEASE_TAG" dist/* \
             --repo "$GITHUB_REPOSITORY" \
-            --title "$GITHUB_REF_NAME" \
+            --title "$RELEASE_TAG" \
             --generate-notes

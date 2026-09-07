@@ -159,25 +159,61 @@ publisher there with environment `testpypi`, and create that environment too.
 Until then the `publish to TestPyPI` job shows red on every release and means
 nothing more than "not configured".
 
-### Each release
+### Each release: it is automatic
 
-1. Bump `__version__` in `src/app_automating/__init__.py`. That is the only
-   place a version is written — `pyproject.toml` reads it from there.
-2. Commit it, then tag and push:
+**Every push to `main` publishes a release.** You do not bump a version, you do
+not write a tag. The workflow reads `__version__`, increments it, commits the
+new value, tags it, builds, and publishes — all in one run.
 
-   ```bash
-   git tag v0.1.0 && git push origin v0.1.0
-   ```
+Which number moves is decided by your commit message:
 
-The workflow then checks the tag against `__version__` and refuses to publish if
-they disagree, runs lint and `pytest -m unit`, builds, checks the metadata with
-`twine`, rehearses on TestPyPI if that is configured, publishes to PyPI, and
-attaches the artifacts to a generated GitHub release.
+| Commit message contains | 0.4.2 becomes | Use it for |
+|---|---|---|
+| *(nothing special)* | `0.4.3` | The default. Fixes, docs on a code change, internals |
+| `#minor` | `0.5.0` | A new tool, a new module, anything additive |
+| `#major` | `1.0.0` | A breaking change to a tool's name, arguments or payload |
 
-Only the build job can stop a release. A failing rehearsal cannot.
+```bash
+git commit -m "add android_install_apk #minor"
+git push origin main
+# -> 0.5.0 on PyPI, tagged v0.5.0, GitHub release created
+```
 
-To rehearse without tagging anything, run the workflow manually from the Actions
-tab and choose `TestPyPI`.
+Patch is the default deliberately. A release that should have been a minor is a
+cosmetic mistake; one that should have been a patch is a lie about
+compatibility.
+
+#### What does not trigger a release
+
+Pushes touching only these never start the workflow, so a README typo cannot
+burn a version number:
+
+`**/*.md` · `LICENSE` · `.gitignore` · `.env.example` ·
+`.github/ISSUE_TEMPLATE/**` · `.claude/**`
+
+GitHub also honours `[skip ci]` in a commit message, which suppresses the run
+whatever it touched.
+
+#### The two other ways in
+
+- **Push a `v*` tag by hand.** Publishes exactly that tag, with no bump. The
+  version in `__init__.py` must already match, or the build fails. This is how
+  you re-run a release after fixing something on PyPI's side.
+- **Run it from the Actions tab.** Choose `TestPyPI` to rehearse against the
+  current commit without tagging or bumping anything.
+
+#### Why it cannot loop
+
+The bump job pushes its commit and tag with the default `GITHUB_TOKEN`, and
+GitHub deliberately does not start workflow runs from anything that token
+pushes. The commit is also marked `[skip ci]`, which keeps it safe if someone
+later swaps in a personal access token.
+
+That same rule is why the bump and the publish live in *one* workflow run: a tag
+pushed by CI can never trigger a separate release workflow, so this one carries
+straight on rather than waiting for a trigger that will never arrive.
+
+Only the build job can stop a release. A failing TestPyPI rehearsal cannot.
 
 ## Reporting a bug
 

@@ -53,6 +53,18 @@ what you ran on your own machine, or say that you could not.
 - [ ] I ran `uv run pytest -m integration` locally — result:
 - [ ] I could not run them, because:
 
+## Release impact
+
+<!--
+Merging to main publishes a release. The bump comes from the commit message:
+nothing = patch, `#minor` = new tool or module, `#major` = a breaking change to
+a tool's name, arguments or returned payload. Tick what this is.
+-->
+
+- [ ] Patch — fixes and internals, no new surface
+- [ ] `#minor` — adds a tool, a module, or an argument with a default
+- [ ] `#major` — renames or removes a tool, changes an argument's meaning, or changes a returned payload
+
 ## Anything left uncovered
 
 <!--
