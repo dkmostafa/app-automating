@@ -118,7 +118,7 @@ jobs:
           echo -n "" | timeout 30 app-automating
           echo "the console script started and exited cleanly"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
