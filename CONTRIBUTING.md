@@ -18,11 +18,18 @@ That last command is the one that must pass on any machine. It needs no Android
 SDK, no device and no network, and it takes under a second. If it fails on a
 fresh clone, that is a bug — please open an issue.
 
-To exercise the rest you also need the Android SDK (`adb`, `emulator`,
-`avdmanager`, `sdkmanager` — set `ANDROID_SDK_ROOT`), hardware acceleration, a
+To exercise the rest you need the Android SDK, hardware acceleration, a
 downloaded system image, Node.js, the `appium` CLI and the `uiautomator2`
-driver. `uv run app-automating` then serves the tools, and
-`appium_check_environment` reports whatever is still missing.
+driver. The README has copy-pasteable steps for
+[Ubuntu, WSL2 and macOS](README.md#installing-the-prerequisites) — including the
+two traps that catch most people, the `cmdline-tools/latest/` directory layout
+and the distro `adb` that shadows the SDK's. `uv run app-automating` then serves
+the tools, and `appium_check_environment` reports whatever is still missing.
+
+Note that native Windows is not supported: the process handling uses
+`os.killpg`, `os.getpgid` and `signal.SIGKILL`, which do not exist there. If you
+want to change that, it is a real contribution — see the platform table in the
+README.
 
 ## The rules
 
