@@ -1,6 +1,9 @@
 [project]
 name = "app-automating"
-version = "0.1.0"
+# Single-sourced from src/app_automating/__init__.py (see [tool.hatch.version]).
+# A release is one edit there, and the tag is checked against it in CI, so a
+# tag and a wheel can never disagree about which version this is.
+dynamic = ["version"]
 description = "An MCP server that drives Android emulators and real devices, and remembers how it got there."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -52,6 +55,9 @@ app-automating = "app_automating.server:run"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/app_automating/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 # One package, one name in site-packages. The import root is src/, and

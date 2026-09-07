@@ -15,5 +15,7 @@ from __future__ import annotations
 
 __all__ = ["__version__"]
 
-#: Kept in step with ``project.version`` in ``pyproject.toml``.
+#: The one place the version is written. ``pyproject.toml`` declares the version
+#: dynamic and reads it from here, and the release workflow refuses to publish a
+#: tag that disagrees with it -- so bumping this line is the whole release.
 __version__ = "0.1.0"

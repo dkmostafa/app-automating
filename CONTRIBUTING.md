@@ -118,6 +118,48 @@ module before writing your first one — the density and the voice are the targe
 - If you could not test something for real, say so. Rule 1 §6 is explicit that
   leaving a behaviour uncovered and naming it beats faking it to green.
 
+## Releasing
+
+For maintainers. `.github/workflows/release.yml` does the work; these are the
+parts a workflow cannot do for you.
+
+### One-time: set up Trusted Publishing
+
+There is no API token anywhere in this repository, and there should never be
+one. PyPI mints a short-lived credential for this exact workflow instead. Add a
+*pending publisher* on both indexes — [PyPI](https://pypi.org/manage/account/publishing/)
+and [TestPyPI](https://test.pypi.org/manage/account/publishing/) — with:
+
+| Field | Value |
+|---|---|
+| PyPI project name | `app-automating` |
+| Owner | `dkmostafa` |
+| Repository | `app-automating` |
+| Workflow name | `release.yml` |
+| Environment | `pypi` on PyPI, `testpypi` on TestPyPI |
+
+Then create those two environments under **Settings → Environments** in the
+repository. Adding a required reviewer to `pypi` makes every release pause for a
+human before it becomes public, which is worth the two seconds.
+
+### Each release
+
+1. Bump `__version__` in `src/app_automating/__init__.py`. That is the only
+   place a version is written — `pyproject.toml` reads it from there.
+2. Commit it, then tag and push:
+
+   ```bash
+   git tag v0.1.0 && git push origin v0.1.0
+   ```
+
+The workflow then checks the tag against `__version__` and refuses to publish if
+they disagree, runs lint and `pytest -m unit`, builds, checks the metadata with
+`twine`, publishes to TestPyPI, publishes to PyPI, and attaches the artifacts to
+a generated GitHub release.
+
+To rehearse without tagging anything, run the workflow manually from the Actions
+tab and choose `TestPyPI`.
+
 ## Reporting a bug
 
 Use the bug report template — it asks for the host details (OS, SDK version,
