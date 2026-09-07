@@ -18,4 +18,4 @@ __all__ = ["__version__"]
 #: The one place the version is written. ``pyproject.toml`` declares the version
 #: dynamic and reads it from here, and the release workflow refuses to publish a
 #: tag that disagrees with it -- so bumping this line is the whole release.
-__version__ = "0.1.0"
+__version__ = "0.1.1"
