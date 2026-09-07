@@ -130,8 +130,8 @@ def server(service: AsyncMock) -> FastMCP:
 
 
 async def _call(server: FastMCP, name: str, **arguments):
-    tools = await server.get_tools()
-    return await tools[name].run(arguments)
+    tool = await server.get_tool(name)
+    return await tool.run(arguments)
 
 
 # -- registration ----------------------------------------------------------

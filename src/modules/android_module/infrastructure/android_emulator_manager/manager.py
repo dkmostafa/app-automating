@@ -38,6 +38,8 @@ from ...domain.models import (
     ListDevicesResult,
     ListEmulatorsRequest,
     ListEmulatorsResult,
+    RenameEmulatorRequest,
+    RenameEmulatorResult,
     StartEmulatorRequest,
     StartEmulatorResult,
     StopEmulatorRequest,
@@ -65,6 +67,7 @@ from .filesystem import AvdStore
 from .parsing import (
     classify_create_failure,
     classify_install_failure,
+    classify_rename_failure,
     is_emulator_serial,
     parse_adb_devices,
     parse_avd_list,
@@ -417,6 +420,61 @@ class AndroidEmulatorManager:
         return DeleteEmulatorResult(
             name=request.name,
             deleted_path=avd_dir,
+            stopped_first=stopped_first,
+            duration_seconds=time.monotonic() - started,
+        )
+
+    async def rename_emulator(self, request: RenameEmulatorRequest) -> RenameEmulatorResult:
+        """Rename an AVD, moving its payload directory to match."""
+        started = time.monotonic()
+        validate_avd_name(request.name)
+        validate_avd_name(request.new_name)
+        self._avds.require(request.name)
+        # Also the "renamed it to what it is already called" case: the name is
+        # taken, by this very AVD. avdmanager treats that as a silent no-op,
+        # which would have this method report a rename that never happened.
+        if self._avds.exists(request.new_name):
+            raise AvdAlreadyExistsError(request.new_name)
+
+        previous_path = self._avds.directory(request.name)
+
+        running = await self._running_device_for(request.name)
+        stopped_first = False
+        if running is not None:
+            if not request.stop_if_running:
+                raise AvdInUseError(request.name, running.device_id)
+            await self.stop_emulator(StopEmulatorRequest(device_id=running.device_id))
+            stopped_first = True
+
+        result = await self._runner.run_tool(
+            "avdmanager",
+            "move",
+            "avd",
+            "-n",
+            request.name,
+            "-r",
+            request.new_name,
+            timeout=self._config.avdmanager_timeout_seconds,
+        )
+        if result.returncode != 0:
+            raise classify_rename_failure(request, result, self._avds.home)
+
+        # avdmanager exits 0 on a move it did not perform -- it prints "Error:
+        # Failed to move ..." and returns success anyway. The disk is the only
+        # honest answer, so both halves of the rename are confirmed here.
+        if not self._avds.exists(request.new_name) or self._avds.exists(request.name):
+            raise AndroidEmulatorError(
+                f"avdmanager reported success but {request.name!r} was not renamed to "
+                f"{request.new_name!r} under {self._avds.home}: {result.first_error_line()}"
+            )
+
+        return RenameEmulatorResult(
+            name=request.new_name,
+            previous_name=request.name,
+            # Read back rather than assumed: avdmanager moves the directory as
+            # part of the rename, and this is what proves where it landed.
+            path=self._avds.directory(request.new_name),
+            previous_path=previous_path,
             stopped_first=stopped_first,
             duration_seconds=time.monotonic() - started,
         )

@@ -36,6 +36,8 @@ from .models import (
     ListDevicesResult,
     ListEmulatorsRequest,
     ListEmulatorsResult,
+    RenameEmulatorRequest,
+    RenameEmulatorResult,
     StartEmulatorRequest,
     StartEmulatorResult,
     StopEmulatorRequest,
@@ -56,6 +58,7 @@ __all__ = [
     "StartEmulatorRequest",
     "StopEmulatorRequest",
     "DeleteEmulatorRequest",
+    "RenameEmulatorRequest",
     # results and value objects
     "AndroidDevice",
     "AvdInfo",
@@ -66,6 +69,7 @@ __all__ = [
     "StartEmulatorResult",
     "StopEmulatorResult",
     "DeleteEmulatorResult",
+    "RenameEmulatorResult",
     # errors
     "AndroidModuleError",
     "BackendUnavailable",

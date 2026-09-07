@@ -31,7 +31,7 @@ def _payload_types() -> list[type[BaseModel]]:
 def test_every_exported_name_is_a_payload_model() -> None:
     """Guard the guard: a typo in __all__ would otherwise empty every check below."""
     types = _payload_types()
-    assert len(types) == 9
+    assert len(types) == 10
     assert all(issubclass(t, BaseModel) for t in types)
 
 

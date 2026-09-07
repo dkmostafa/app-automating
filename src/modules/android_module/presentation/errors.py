@@ -90,8 +90,11 @@ REMEDIES: tuple[tuple[type[AndroidModuleError], str], ...] = (
     ),
     (
         EmulatorAlreadyExists,
-        "Choose a different name, or pass replace_existing=True to overwrite the "
-        "existing AVD -- which destroys its data irreversibly.",
+        "That name already belongs to an AVD -- and when renaming, possibly to the very "
+        "one being renamed. Choose a name that android_get_installed_emulators does not "
+        "already list. Only android_create_device can take the name by force, with "
+        "replace_existing=True, which destroys the existing AVD's data irreversibly; "
+        "android_rename_emulator has no such option and never overwrites.",
     ),
     (
         EmulatorAlreadyRunning,

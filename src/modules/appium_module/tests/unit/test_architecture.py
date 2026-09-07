@@ -253,6 +253,20 @@ def test_every_port_is_exported_from_the_domain() -> None:
     assert set(ports_module.__all__) == {port.__name__ for port in ALL_PORTS}
 
 
+def test_the_composition_root_offers_a_generic_port_decorator_hook() -> None:
+    """The replacement for a declared journal port: a plain function, typed
+    against nothing but this module's own ports, that this module calls and
+    never inspects. A caller elsewhere can use it to observe every gesture
+    without this module ever importing or naming what that caller is.
+    """
+    from modules.appium_module.application.di import build_appium_device_service
+
+    signature = inspect.signature(build_appium_device_service)
+
+    assert "decorate" in signature.parameters
+    assert signature.parameters["decorate"].default is None
+
+
 # ---------------------------------------------------------------------------
 # Rule 0 §3 (L): errors reconstruct from their own arguments
 # ---------------------------------------------------------------------------

@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from ...domain.models import (
+    FOCUSED_STRATEGY,
     AppiumSession,
     CheckEnvironmentRequest,
     ElementInteractionResult,
@@ -372,16 +373,20 @@ class AppiumDeviceManager:
                 lambda driver: _fill(element, text, clear_first),
             )
         else:
+            # Resolved through the registry rather than inline, so that "nothing
+            # has focus" arrives as ElementNotFound instead of a raw Selenium
+            # complaint wearing an InteractionFailed label.
+            element = await self._sessions.focused_element(request.session_id)
             found_text = await self._sessions.call(
                 request.session_id,
                 "type_text",
-                lambda driver: _fill(driver.switch_to.active_element, text, clear_first),
+                lambda driver: _fill(element, text, clear_first),
             )
 
         return ElementInteractionResult(
             session_id=request.session_id,
             action="type_text",
-            strategy=strategy or "focused",
+            strategy=strategy or FOCUSED_STRATEGY,
             selector=selector or "",
             element_text=found_text,
             duration_seconds=time.monotonic() - started,

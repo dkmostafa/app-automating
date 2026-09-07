@@ -145,6 +145,43 @@ def test_the_service_is_built_from_ports_rather_than_from_the_manager() -> None:
     )
 
 
+def test_a_decorator_replaces_only_the_session_and_gesture_ports() -> None:
+    """The generic composition hook this module offers, and nothing more: it
+    never sees ``environment``, and it cannot substitute ``screen``."""
+    wrapped_sessions, wrapped_interaction = object(), object()
+
+    def decorate(sessions: object, screen: object, interaction: object) -> tuple[object, object]:
+        return wrapped_sessions, wrapped_interaction
+
+    with (
+        patch(f"{DI}.build_appium_device_manager") as build_manager,
+        patch(f"{DI}.AppiumDeviceService") as service_cls,
+    ):
+        build_appium_device_service(AppiumConfig(), decorate=decorate)
+
+    manager = build_manager.return_value
+    service_cls.assert_called_once_with(
+        environment=manager,
+        sessions=wrapped_sessions,
+        screen=manager,
+        interaction=wrapped_interaction,
+    )
+
+
+def test_with_no_decorator_the_service_is_unaware_one_could_exist() -> None:
+    """The default: `decorate=None` is a no-op, not an error."""
+    with (
+        patch(f"{DI}.build_appium_device_manager") as build_manager,
+        patch(f"{DI}.AppiumDeviceService") as service_cls,
+    ):
+        build_appium_device_service(AppiumConfig(), decorate=None)
+
+    manager = build_manager.return_value
+    service_cls.assert_called_once_with(
+        environment=manager, sessions=manager, screen=manager, interaction=manager
+    )
+
+
 # -- lifetimes -------------------------------------------------------------
 
 
@@ -157,6 +194,29 @@ async def test_the_scoped_form_closes_the_adapter_on_the_way_out() -> None:
         async with appium_device_service() as service:
             assert isinstance(service, AppiumDeviceService)
         manager.aclose.assert_awaited_once()
+
+
+async def test_the_scoped_form_also_accepts_a_decorator() -> None:
+    """The hook is threaded through both builders identically."""
+    manager = AsyncMock(spec=AppiumDeviceManager)
+    wrapped_sessions, wrapped_interaction = object(), object()
+
+    def decorate(sessions: object, screen: object, interaction: object) -> tuple[object, object]:
+        return wrapped_sessions, wrapped_interaction
+
+    with (
+        patch(f"{DI}.build_appium_device_manager", return_value=manager),
+        patch(f"{DI}.AppiumDeviceService") as service_cls,
+    ):
+        async with appium_device_service(decorate=decorate):
+            pass
+
+    service_cls.assert_called_once_with(
+        environment=manager,
+        sessions=wrapped_sessions,
+        screen=manager,
+        interaction=wrapped_interaction,
+    )
 
 
 async def test_the_adapter_is_closed_even_when_the_body_raises() -> None:

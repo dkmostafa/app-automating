@@ -28,6 +28,7 @@ from .errors import (
     SessionStartFailed,
 )
 from .models import (
+    FOCUSED_STRATEGY,
     LOCATOR_STRATEGIES,
     SCROLL_DIRECTIONS,
     AppiumSession,
@@ -90,6 +91,7 @@ __all__ = [
     "InteractionResult",
     "ElementInteractionResult",
     # vocabulary
+    "FOCUSED_STRATEGY",
     "LOCATOR_STRATEGIES",
     "SCROLL_DIRECTIONS",
     # errors

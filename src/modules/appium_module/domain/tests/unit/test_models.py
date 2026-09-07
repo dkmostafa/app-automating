@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from modules.appium_module.domain.models import (
+    FOCUSED_STRATEGY,
     LOCATOR_STRATEGIES,
     SCROLL_DIRECTIONS,
     AppiumSession,
@@ -166,3 +167,9 @@ def test_the_locator_strategies_lead_with_the_most_stable_one() -> None:
 
 def test_the_four_scroll_directions_are_the_whole_set() -> None:
     assert set(SCROLL_DIRECTIONS) == {"up", "down", "left", "right"}
+
+
+def test_the_focused_strategy_is_not_a_locator_a_caller_may_pass() -> None:
+    """It reports how an element was reached, never how to reach one. Accepting
+    it as input would promise a lookup nothing can perform."""
+    assert FOCUSED_STRATEGY not in LOCATOR_STRATEGIES

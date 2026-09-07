@@ -23,6 +23,7 @@ from ..domain.models import (
     InstallSystemImageResult,
     ListDevicesResult,
     ListEmulatorsResult,
+    RenameEmulatorResult,
     StartEmulatorResult,
     StopEmulatorResult,
 )
@@ -34,6 +35,7 @@ from .schemas import (
     DeviceListPayload,
     DevicePayload,
     InstalledImagePayload,
+    RenamedEmulatorPayload,
     StartedEmulatorPayload,
     StoppedEmulatorPayload,
 )
@@ -47,6 +49,7 @@ __all__ = [
     "render_stopped_emulator",
     "render_created_emulator",
     "render_deleted_emulator",
+    "render_renamed_emulator",
     "render_installed_image",
 ]
 
@@ -154,6 +157,19 @@ def render_deleted_emulator(result: DeleteEmulatorResult) -> DeletedEmulatorPayl
     return DeletedEmulatorPayload(
         name=result.name,
         deleted_path=_path(result.deleted_path),
+        stopped_first=result.stopped_first,
+        duration_seconds=result.duration_seconds,
+    )
+
+
+def render_renamed_emulator(result: RenameEmulatorResult) -> RenamedEmulatorPayload:
+    """A renamed AVD. Both names are surfaced: the caller has to update its own
+    notion of what the device is called, and the old one is what it knew it by."""
+    return RenamedEmulatorPayload(
+        name=result.name,
+        previous_name=result.previous_name,
+        path=str(result.path),
+        previous_path=_path(result.previous_path),
         stopped_first=result.stopped_first,
         duration_seconds=result.duration_seconds,
     )

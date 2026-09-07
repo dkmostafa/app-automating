@@ -27,6 +27,8 @@ from modules.android_module.application.di import android_emulator_service
 from modules.android_module.presentation import register_android_emulator_tools
 from modules.appium_module.application.di import appium_device_service
 from modules.appium_module.presentation import register_appium_device_tools
+from modules.navigation_memory_module.application.di import navigation_memory_service
+from modules.navigation_memory_module.presentation import register_navigation_tools
 
 
 class StdioOnlyMCP(FastMCP):
@@ -56,12 +58,25 @@ async def lifespan(server: FastMCP) -> AsyncIterator[None]:
     exits first: its sessions and its managed server are torn down while the
     emulators they were driving are still up. Closing the devices first would
     leave every session quitting against a device that had already gone.
+    ``navigation`` sits between them for the same reason -- ending a session
+    writes that run's closing record, so the memory has to outlive the sessions
+    writing into it and can be closed once they are gone.
+
+    This is also the one place the two device modules meet. ``appium_module``
+    exposes a generic "wrap my ports before you build the service" hook and
+    never learns who uses it or why; ``navigation_memory_module`` supplies a
+    decorator that records every gesture into its map -- built by that module's
+    ``di.py``, because this file may not name an adapter. Handing it over is a
+    single argument, and passing ``None`` instead is all it takes to run with
+    no recording at all.
     """
     async with android_emulator_service() as android:
         register_android_emulator_tools(server, android)
-        async with appium_device_service() as appium:
-            register_appium_device_tools(server, appium)
-            yield
+        async with navigation_memory_service() as (navigation, decorate):
+            register_navigation_tools(server, navigation)
+            async with appium_device_service(decorate=decorate) as appium:
+                register_appium_device_tools(server, appium)
+                yield
 
 
 mcp = StdioOnlyMCP("agentic-testing", lifespan=lifespan)

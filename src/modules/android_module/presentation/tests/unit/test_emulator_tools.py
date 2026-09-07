@@ -21,7 +21,11 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError, ValidationError
 
 from modules.android_module.application.services import AndroidEmulatorService
-from modules.android_module.domain.errors import EmulatorAlreadyRunning, EmulatorNotFound
+from modules.android_module.domain.errors import (
+    EmulatorAlreadyExists,
+    EmulatorAlreadyRunning,
+    EmulatorNotFound,
+)
 from modules.android_module.domain.models import (
     AndroidDevice,
     AvdInfo,
@@ -30,6 +34,7 @@ from modules.android_module.domain.models import (
     InstallSystemImageResult,
     ListDevicesResult,
     ListEmulatorsResult,
+    RenameEmulatorResult,
     StartEmulatorResult,
     StopEmulatorResult,
 )
@@ -52,6 +57,7 @@ TOOL_NAMES = (
     "android_create_device",
     "android_download_image",
     "android_delete_emulator",
+    "android_rename_emulator",
 )
 
 
@@ -104,6 +110,14 @@ def service() -> AsyncMock:
         path=Path("/sdk/system-images/android-34/google_apis/x86_64"),
         already_installed=True,
         duration_seconds=0.1,
+    )
+    mock.rename_emulator.return_value = RenameEmulatorResult(
+        name="Pixel_7_Regression",
+        previous_name="Pixel_7_API_34",
+        path=Path("/avd/Pixel_7_Regression.avd"),
+        previous_path=Path("/avd/Pixel_7_API_34.avd"),
+        stopped_first=False,
+        duration_seconds=0.3,
     )
     mock.delete_emulator.return_value = DeleteEmulatorResult(
         name="Pixel_7_API_34",
@@ -391,3 +405,70 @@ async def test_no_tool_lets_a_domain_failure_escape_untranslated(
     with pytest.raises(ToolError) as excinfo:
         await mcp.call_tool(tool_name, arguments)
     assert "EmulatorNotFound" in str(excinfo.value)
+
+
+async def test_rename_emulator_passes_both_names_and_renders_the_result(
+    mcp: FastMCP, service: AsyncMock
+) -> None:
+    result = await mcp.call_tool(
+        "android_rename_emulator",
+        {"avd_name": "Pixel_7_API_34", "new_avd_name": "Pixel_7_Regression"},
+    )
+
+    service.rename_emulator.assert_awaited_once_with(
+        "Pixel_7_API_34", "Pixel_7_Regression", stop_if_running=False
+    )
+    assert result.structured_content == {
+        "name": "Pixel_7_Regression",
+        "previous_name": "Pixel_7_API_34",
+        "path": "/avd/Pixel_7_Regression.avd",
+        "previous_path": "/avd/Pixel_7_API_34.avd",
+        "stopped_first": False,
+        "duration_seconds": 0.3,
+    }
+
+
+async def test_rename_emulator_forwards_stop_if_running(mcp: FastMCP, service: AsyncMock) -> None:
+    await mcp.call_tool(
+        "android_rename_emulator",
+        {"avd_name": "old", "new_avd_name": "new", "stop_if_running": True},
+    )
+
+    service.rename_emulator.assert_awaited_once_with("old", "new", stop_if_running=True)
+
+
+async def test_rename_emulator_defaults_to_refusing_a_running_avd(
+    mcp: FastMCP, service: AsyncMock
+) -> None:
+    """The safe default has to survive the trip through the tool signature."""
+    await mcp.call_tool("android_rename_emulator", {"avd_name": "old", "new_avd_name": "new"})
+
+    assert service.rename_emulator.await_args.kwargs["stop_if_running"] is False
+
+
+async def test_rename_emulator_never_touches_the_delete_path(
+    mcp: FastMCP, service: AsyncMock
+) -> None:
+    """Renaming keeps everything on the device; nothing here may destroy an AVD."""
+    await mcp.call_tool("android_rename_emulator", {"avd_name": "old", "new_avd_name": "new"})
+
+    service.delete_emulator.assert_not_awaited()
+    service.create_device.assert_not_awaited()
+
+
+async def test_a_rename_failure_reaches_the_caller_as_a_tool_error(
+    mcp: FastMCP, service: AsyncMock
+) -> None:
+    """Rule 3 §6: the domain error is translated, with its evidence and a remedy."""
+    service.rename_emulator.side_effect = EmulatorAlreadyExists("Pixel_7_Regression")
+
+    with pytest.raises(ToolError) as excinfo:
+        await mcp.call_tool(
+            "android_rename_emulator",
+            {"avd_name": "Pixel_7_API_34", "new_avd_name": "Pixel_7_Regression"},
+        )
+
+    message = str(excinfo.value)
+    assert "EmulatorAlreadyExists" in message
+    assert "Pixel_7_Regression" in message
+    assert "android_rename_emulator has no such option" in message

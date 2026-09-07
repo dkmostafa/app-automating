@@ -29,6 +29,7 @@ from modules.android_module.domain import (
     ListDevicesResult,
     ListEmulatorsRequest,
     ListEmulatorsResult,
+    RenameEmulatorRequest,
     StartEmulatorRequest,
     StopEmulatorRequest,
 )
@@ -63,6 +64,7 @@ PUBLIC_METHODS = (
     "start_emulator_headless",
     "stop_emulator",
     "delete_emulator",
+    "rename_emulator",
 )
 
 
@@ -382,6 +384,173 @@ async def test_delete_emulator_raises_for_an_avd_that_is_not_there(
 
 
 # ---------------------------------------------------------------------------
+# rename
+# ---------------------------------------------------------------------------
+
+
+async def test_rename_emulator_moves_the_avd_and_its_payload_directory(
+    manager: AndroidEmulatorManager, created_avd: str, second_avd_name: str
+) -> None:
+    """The whole operation, against the real avdmanager.
+
+    Asserted together because they are one atomic outcome: the definition moves,
+    the payload directory moves with it, and the AVD answers to exactly one name
+    afterwards. A rename that did half of this would leave a working AVD whose
+    name and directory disagree.
+    """
+    before = manager.avd_home / f"{created_avd}.avd"
+    assert before.is_dir()
+
+    result = await manager.rename_emulator(
+        RenameEmulatorRequest(name=created_avd, new_name=second_avd_name)
+    )
+
+    assert result.name == second_avd_name
+    assert result.previous_name == created_avd
+    assert result.stopped_first is False
+    assert result.duration_seconds >= 0
+
+    # the definition
+    assert (manager.avd_home / f"{second_avd_name}.ini").exists()
+    assert not (manager.avd_home / f"{created_avd}.ini").exists()
+
+    # the payload directory really moved, and the result says where to
+    assert result.path.is_dir()
+    assert result.path == manager.avd_home / f"{second_avd_name}.avd"
+    assert result.previous_path == before
+    assert not before.exists()
+
+    # and the AVD answers to the new name only
+    listed = await manager.list_emulators(ListEmulatorsRequest())
+    assert listed.by_name(second_avd_name) is not None
+    assert listed.by_name(created_avd) is None
+
+
+async def test_rename_emulator_keeps_everything_that_was_on_the_device(
+    manager: AndroidEmulatorManager, created_avd: str, second_avd_name: str
+) -> None:
+    """The claim the tool's docstring makes, checked rather than asserted in prose.
+
+    A file written into the payload directory stands in for the snapshots,
+    userdata and installed apps a real AVD carries: if it survives, so do they,
+    because the directory is moved rather than rebuilt.
+    """
+    marker = manager.avd_home / f"{created_avd}.avd" / "at_it_marker.txt"
+    marker.write_text("survives the rename", encoding="utf-8")
+
+    result = await manager.rename_emulator(
+        RenameEmulatorRequest(name=created_avd, new_name=second_avd_name)
+    )
+
+    moved = result.path / "at_it_marker.txt"
+    assert moved.is_file()
+    assert moved.read_text(encoding="utf-8") == "survives the rename"
+
+
+async def test_the_renamed_avd_still_records_where_its_payload_lives(
+    manager: AndroidEmulatorManager, created_avd: str, second_avd_name: str
+) -> None:
+    """``AvdStore.directory`` reads ``path=`` from the ``.ini``, so a rename that
+    moved the directory without rewriting that line would leave a broken AVD
+    that still looked fine in a listing."""
+    await manager.rename_emulator(RenameEmulatorRequest(name=created_avd, new_name=second_avd_name))
+
+    ini = (manager.avd_home / f"{second_avd_name}.ini").read_text(encoding="utf-8")
+    assert f"{second_avd_name}.avd" in ini
+    assert f"{created_avd}.avd" not in ini
+
+
+async def test_rename_emulator_refuses_to_clobber_another_avd(
+    manager: AndroidEmulatorManager,
+    created_avd: str,
+    second_avd_name: str,
+    installed_system_image: str,
+) -> None:
+    """Unlike create, rename has no force: the other AVD's data is never at risk."""
+    await manager.create_emulator(
+        CreateEmulatorRequest(
+            name=second_avd_name, system_image=installed_system_image, device=DEVICE_PROFILE
+        )
+    )
+
+    with pytest.raises(AvdAlreadyExistsError) as excinfo:
+        await manager.rename_emulator(
+            RenameEmulatorRequest(name=created_avd, new_name=second_avd_name)
+        )
+
+    assert excinfo.value.name == second_avd_name
+    # Both AVDs survive the refusal, untouched.
+    assert (manager.avd_home / f"{created_avd}.ini").exists()
+    assert (manager.avd_home / f"{second_avd_name}.ini").exists()
+
+
+async def test_renaming_an_avd_to_its_own_name_is_refused(
+    manager: AndroidEmulatorManager, created_avd: str
+) -> None:
+    """avdmanager treats this as a silent no-op and exits 0, which would have the
+    manager report a rename that never happened."""
+    with pytest.raises(AvdAlreadyExistsError) as excinfo:
+        await manager.rename_emulator(RenameEmulatorRequest(name=created_avd, new_name=created_avd))
+
+    assert excinfo.value.name == created_avd
+    assert (manager.avd_home / f"{created_avd}.ini").exists()
+
+
+async def test_rename_emulator_raises_for_an_avd_that_is_not_there(
+    manager: AndroidEmulatorManager, second_avd_name: str
+) -> None:
+    with pytest.raises(AvdNotFoundError) as excinfo:
+        await manager.rename_emulator(
+            RenameEmulatorRequest(name=f"{TEST_AVD_PREFIX}never_created", new_name=second_avd_name)
+        )
+
+    assert excinfo.value.avd_home == manager.avd_home
+    assert not (manager.avd_home / f"{second_avd_name}.ini").exists()
+
+
+async def test_rename_emulator_rejects_an_invalid_target_name_before_spawning_anything(
+    manager: AndroidEmulatorManager, created_avd: str
+) -> None:
+    """The load-bearing validation on this path.
+
+    Handed a name with a path separator in it, avdmanager prints "Error: Failed
+    to move ..." and then **exits 0** -- so the exit code cannot be trusted and
+    the in-process check is what actually protects the AVD.
+    """
+    with pytest.raises(InvalidAvdNameError):
+        await manager.rename_emulator(
+            RenameEmulatorRequest(name=created_avd, new_name="bad name/../escape")
+        )
+
+    assert (manager.avd_home / f"{created_avd}.ini").exists()
+    assert (manager.avd_home / f"{created_avd}.avd").is_dir()
+
+
+async def test_rename_emulator_rejects_an_invalid_source_name(
+    manager: AndroidEmulatorManager, second_avd_name: str
+) -> None:
+    with pytest.raises(InvalidAvdNameError):
+        await manager.rename_emulator(
+            RenameEmulatorRequest(name="not a valid name", new_name=second_avd_name)
+        )
+
+
+async def test_a_renamed_avd_can_be_renamed_back(
+    manager: AndroidEmulatorManager, created_avd: str, second_avd_name: str
+) -> None:
+    """Nothing about the rename is one-way, and the round trip leaves no debris."""
+    await manager.rename_emulator(RenameEmulatorRequest(name=created_avd, new_name=second_avd_name))
+    back = await manager.rename_emulator(
+        RenameEmulatorRequest(name=second_avd_name, new_name=created_avd)
+    )
+
+    assert back.name == created_avd
+    assert (manager.avd_home / f"{created_avd}.avd").is_dir()
+    assert not (manager.avd_home / f"{second_avd_name}.ini").exists()
+    assert not (manager.avd_home / f"{second_avd_name}.avd").exists()
+
+
+# ---------------------------------------------------------------------------
 # start / stop failure paths (no successful boot needed)
 # ---------------------------------------------------------------------------
 
@@ -450,7 +619,7 @@ async def test_stop_emulator_raises_for_a_serial_that_is_not_attached(
 
 
 async def test_headless_emulator_boots_serves_adb_and_stops(
-    manager: AndroidEmulatorManager, created_avd: str
+    manager: AndroidEmulatorManager, host_can_boot_an_emulator: None, created_avd: str
 ) -> None:
     """The slow one. Boots a real emulator headless, checks everything that is
     only observable while it runs, then shuts it down.
@@ -458,6 +627,11 @@ async def test_headless_emulator_boots_serves_adb_and_stops(
     These assertions share a single boot deliberately: on this host a boot is
     ~40s, and splitting them across tests would either multiply that or make
     them depend on execution order.
+
+    ``host_can_boot_an_emulator`` comes first in the signature on purpose: it
+    decides whether this machine can boot anything at all before the AVD is
+    created, so a host that is out of memory or already running an emulator
+    skips without paying for an AVD it will never start.
     """
     started = await manager.start_emulator_headless(
         StartEmulatorRequest(
@@ -492,6 +666,14 @@ async def test_headless_emulator_boots_serves_adb_and_stops(
     # Deleting a running AVD would corrupt it, so it is refused by default.
     with pytest.raises(AvdInUseError):
         await manager.delete_emulator(DeleteEmulatorRequest(name=created_avd))
+
+    # Renaming it is refused for a stronger reason: the rename moves the payload
+    # directory, and moving it out from under a live emulator corrupts it.
+    with pytest.raises(AvdInUseError) as in_use:
+        await manager.rename_emulator(
+            RenameEmulatorRequest(name=created_avd, new_name=f"{created_avd}_x")
+        )
+    assert in_use.value.device_id == started.device_id
 
     stopped = await manager.stop_emulator(StopEmulatorRequest(device_id=started.device_id))
     assert stopped.stopped is True

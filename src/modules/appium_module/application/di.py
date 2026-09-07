@@ -14,13 +14,23 @@ What happens here, and nowhere else:
 * an adapter is bound to the ports it satisfies, and the ports are injected into
   a service.
 
+``decorate`` is the one optional hook this file offers a caller. It is a plain
+function -- typed as :data:`PortDecorator`, naming nothing but this module's own
+ports -- that gets a chance to wrap ``sessions`` and ``interaction`` before they
+reach the service. This module builds it, calls it, and forgets it; it never
+learns what the returned objects actually do or who supplied the hook. That is
+what keeps this module ignorant of ``navigation_memory_module``, which is the
+composition root's caller for this hook today: it wraps these same ports to
+record every gesture into a navigation map. Leave ``decorate`` unset and this
+module behaves exactly as if the hook did not exist.
+
 Everything this file builds is handed its settings explicitly. Nothing below it
 reaches for an ambient default.
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
 from ..domain.ports import (
@@ -39,10 +49,20 @@ from ..infrastructure.appium_device_manager import (
 from .services import AppiumDeviceService
 
 __all__ = [
+    "PortDecorator",
     "build_appium_device_manager",
     "appium_device_ports",
     "build_appium_device_service",
     "appium_device_service",
+]
+
+#: A hook that wraps the session and gesture ports before they reach the
+#: service, given the three ports a wrapper could plausibly need. Returns the
+#: (possibly substituted) ``sessions`` and ``interaction`` ports; ``screen`` is
+#: never replaced; reading is unaffected by whatever the hook does.
+PortDecorator = Callable[
+    [SessionLifecycle, ScreenInspector, DeviceInteraction],
+    tuple[SessionLifecycle, DeviceInteraction],
 ]
 
 
@@ -91,7 +111,9 @@ def appium_device_ports(
 # --------------------------------------------------------------------------
 
 
-def build_appium_device_service(config: AppiumConfig | None = None) -> AppiumDeviceService:
+def build_appium_device_service(
+    config: AppiumConfig | None = None, decorate: PortDecorator | None = None
+) -> AppiumDeviceService:
     """The Appium device service, wired to this host's toolchain.
 
     The caller owns the lifetime of what this builds -- including any Appium
@@ -101,6 +123,8 @@ def build_appium_device_service(config: AppiumConfig | None = None) -> AppiumDev
     environment, sessions, screen, interaction = appium_device_ports(
         build_appium_device_manager(config)
     )
+    if decorate is not None:
+        sessions, interaction = decorate(sessions, screen, interaction)
     return AppiumDeviceService(
         environment=environment,
         sessions=sessions,
@@ -111,7 +135,7 @@ def build_appium_device_service(config: AppiumConfig | None = None) -> AppiumDev
 
 @asynccontextmanager
 async def appium_device_service(
-    config: AppiumConfig | None = None,
+    config: AppiumConfig | None = None, decorate: PortDecorator | None = None
 ) -> AsyncIterator[AppiumDeviceService]:
     """The same service, scoped: sessions closed and a managed server killed on exit.
 
@@ -121,6 +145,8 @@ async def appium_device_service(
     """
     manager = build_appium_device_manager(config)
     environment, sessions, screen, interaction = appium_device_ports(manager)
+    if decorate is not None:
+        sessions, interaction = decorate(sessions, screen, interaction)
     try:
         yield AppiumDeviceService(
             environment=environment,

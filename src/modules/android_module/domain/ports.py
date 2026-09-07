@@ -27,6 +27,8 @@ from .models import (
     ListDevicesResult,
     ListEmulatorsRequest,
     ListEmulatorsResult,
+    RenameEmulatorRequest,
+    RenameEmulatorResult,
     StartEmulatorRequest,
     StartEmulatorResult,
     StopEmulatorRequest,
@@ -60,6 +62,8 @@ class EmulatorLifecycle(Protocol):
     async def stop_emulator(self, request: StopEmulatorRequest) -> StopEmulatorResult: ...
 
     async def delete_emulator(self, request: DeleteEmulatorRequest) -> DeleteEmulatorResult: ...
+
+    async def rename_emulator(self, request: RenameEmulatorRequest) -> RenameEmulatorResult: ...
 
 
 @runtime_checkable

@@ -31,6 +31,30 @@ build-backend = "hatchling.build"
 # The import root is src/; the distributed package is modules/.
 packages = ["src/modules"]
 
+# This is the project's only pytest configuration. There is deliberately no
+# pytest.ini and no setup.cfg: pytest reads exactly one of them, and a second
+# file would silently switch off everything below.
+#
+#   uv run pytest                  everything, including a real emulator boot (~1 min)
+#   uv run pytest -m unit          pure code only: no SDK, no device, no DB file, <1s
+#   uv run pytest -m integration   the real toolchain: adb, avdmanager, Appium, a boot
+#   uv run pytest -m "not integration"
+#                                  what a machine with no Android SDK can run
+#   uv run pytest src/modules/android_module
+#                                  one module, both kinds
+#   uv run pytest src/modules/<m>/tests/unit/test_architecture.py
+#                                  the layer rules for one module, on any host
+#
+# Every test file carries `pytestmark` matching the directory it sits in, so the
+# marker selections above and the paths agree by construction (Rule 2 §2). What
+# separates the two is what the code under test *touches*, not how long it
+# takes: a pure parser is a unit test against a 200-line sample, and a store
+# tested against tmp_path is an integration test that finishes in a millisecond.
+#
+# Integration tests drive this host for real. They boot emulators, start Appium
+# servers and write real files, they clean up after themselves, and they skip
+# with a reason rather than failing on a machine that cannot run them. Running
+# them is the developer's call -- see CLAUDE.md.
 [tool.pytest.ini_options]
 # pytest-asyncio 1.x: without this, every async test needs an explicit marker.
 asyncio_mode = "auto"
@@ -42,6 +66,8 @@ markers = [
     "unit: no device, no network, no real DB file",
     "integration: drives the real thing -- real files, real host tools, real devices",
 ]
+# --strict-markers turns a typo'd marker into an error rather than a silent
+# selection of nothing, which is what makes the commented commands above true.
 addopts = "-ra --strict-markers --strict-config"
 
 [tool.ruff]

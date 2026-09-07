@@ -62,6 +62,13 @@ __all__ = [
 #: breaks whenever the hierarchy moves.
 LOCATOR_STRATEGIES = ("accessibility_id", "id", "text", "class_name", "xpath", "uiautomator")
 
+#: What :attr:`ElementInteractionResult.strategy` says when no locator was given
+#: and the text went to whatever held focus. Deliberately not one of
+#: :data:`LOCATOR_STRATEGIES` -- it is never a legal *input*, only a report of
+#: how an element was reached, and :class:`ElementNotFound` names it the same way
+#: when nothing held focus at all.
+FOCUSED_STRATEGY = "focused"
+
 #: Directions :class:`ScrollRequest` understands. The name says which way the
 #: *content* moves, matching how a person describes scrolling a page.
 SCROLL_DIRECTIONS = ("up", "down", "left", "right")

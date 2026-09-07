@@ -11,9 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from modules.android_module.domain import CreateEmulatorRequest
+from modules.android_module.domain import CreateEmulatorRequest, RenameEmulatorRequest
 from modules.android_module.infrastructure.android_emulator_manager import (
     AvdAlreadyExistsError,
+    AvdNotFoundError,
     CommandFailedError,
     CommandResult,
     InvalidAvdNameError,
@@ -24,6 +25,7 @@ from modules.android_module.infrastructure.android_emulator_manager import (
 from modules.android_module.infrastructure.android_emulator_manager.parsing import (
     classify_create_failure,
     classify_install_failure,
+    classify_rename_failure,
     is_emulator_serial,
     parse_adb_devices,
     parse_avd_list,
@@ -229,3 +231,46 @@ def test_install_failures_are_classified_by_table() -> None:
 
     unclassified = classify_install_failure(VALID_IMAGE, _failure("disk full"))
     assert isinstance(unclassified, CommandFailedError)
+
+
+# -- rename classification --------------------------------------------------
+
+RENAME = RenameEmulatorRequest(name="old", new_name="new")
+AVD_HOME = Path("/home/u/.android/avd")
+
+
+@pytest.mark.parametrize(
+    ("output", "expected"),
+    [
+        ("Error: There is already an AVD named 'new'.", AvdAlreadyExistsError),
+        ("Error: There is no valid Android Virtual Device named 'old'.", AvdNotFoundError),
+        ("Error: something nobody has seen before", CommandFailedError),
+    ],
+)
+def test_rename_failures_are_classified_by_table(output: str, expected: type[Exception]) -> None:
+    assert isinstance(classify_rename_failure(RENAME, _failure(output), AVD_HOME), expected)
+
+
+def test_a_collision_names_the_target_and_a_missing_avd_names_the_source() -> None:
+    """Reporting the wrong name sends the caller to fix the wrong argument."""
+    collision = classify_rename_failure(
+        RENAME, _failure("Error: There is already an AVD named 'new'."), AVD_HOME
+    )
+    missing = classify_rename_failure(
+        RENAME, _failure("Error: There is no valid Android Virtual Device named 'old'."), AVD_HOME
+    )
+
+    assert collision.name == "new"
+    assert missing.name == "old"
+    assert missing.avd_home == AVD_HOME
+
+
+def test_a_collision_is_matched_before_the_generic_avd_wording() -> None:
+    """Both messages say "AVD"; only the ordering of the table keeps them apart."""
+    error = classify_rename_failure(
+        RENAME,
+        _failure("Error: There is already an AVD named 'new'. No valid Android Virtual Device."),
+        AVD_HOME,
+    )
+
+    assert isinstance(error, AvdAlreadyExistsError)

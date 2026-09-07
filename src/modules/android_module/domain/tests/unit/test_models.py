@@ -81,6 +81,28 @@ def test_requests_have_defaults_so_adding_a_field_never_breaks_a_call_site() -> 
     assert StartEmulatorRequest(name="x").headless is False
 
 
+def test_rename_refuses_to_run_a_device_out_from_under_itself_by_default() -> None:
+    """A rename moves the payload directory, so the running case must be opt-in."""
+    request = domain_models.RenameEmulatorRequest(name="old", new_name="new")
+
+    assert request.stop_if_running is False
+
+
+def test_a_rename_result_reports_both_names() -> None:
+    """The caller has to update what it thinks the device is called."""
+    result = domain_models.RenameEmulatorResult(
+        name="new",
+        previous_name="old",
+        path=Path("/avd/new.avd"),
+        previous_path=Path("/avd/old.avd"),
+        stopped_first=False,
+        duration_seconds=0.3,
+    )
+
+    assert (result.previous_name, result.name) == ("old", "new")
+    assert result.path != result.previous_path
+
+
 def test_replace_is_how_a_request_is_varied() -> None:
     original = StartEmulatorRequest(name="x")
     headless = dataclasses.replace(original, headless=True)

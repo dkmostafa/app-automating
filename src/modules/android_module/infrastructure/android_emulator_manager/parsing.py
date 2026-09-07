@@ -18,10 +18,16 @@ import re
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from ...domain.models import AndroidDevice, AvdInfo, CreateEmulatorRequest
+from ...domain.models import (
+    AndroidDevice,
+    AvdInfo,
+    CreateEmulatorRequest,
+    RenameEmulatorRequest,
+)
 from .errors import (
     AndroidEmulatorError,
     AvdAlreadyExistsError,
+    AvdNotFoundError,
     CommandFailedError,
     InvalidAvdNameError,
     InvalidSystemImageError,
@@ -39,8 +45,10 @@ __all__ = [
     "parse_avd_list",
     "classify_create_failure",
     "classify_install_failure",
+    "classify_rename_failure",
     "CREATE_FAILURES",
     "INSTALL_FAILURES",
+    "RENAME_FAILURES",
 ]
 
 AVD_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -224,6 +232,27 @@ INSTALL_FAILURES: tuple[InstallFailureRow, ...] = (
 )
 
 
+#: ``(markers, build)``; ``build`` takes the request and the AVD home, because
+#: "not found" is the one rename failure whose error carries where it looked.
+#:
+#: Order matters. avdmanager words a name collision as "there is already an AVD
+#: named 'x'" and a missing source as "there is no valid Android Virtual Device
+#: named 'x'" -- both contain "avd", so the specific markers come first and the
+#: generic ones never get the chance to match the wrong one.
+RenameFailureRow = tuple[tuple[str, ...], Callable[[RenameEmulatorRequest, Path], Exception]]
+
+RENAME_FAILURES: tuple[RenameFailureRow, ...] = (
+    (
+        ("there is already an avd named", "already an avd", "already exists"),
+        lambda r, _home: AvdAlreadyExistsError(r.new_name),
+    ),
+    (
+        ("no valid android virtual device", "there is no android virtual device"),
+        lambda r, home: AvdNotFoundError(r.name, home),
+    ),
+)
+
+
 def _matches(lowered: str, markers: Sequence[str]) -> bool:
     return any(marker in lowered for marker in markers)
 
@@ -246,6 +275,27 @@ def classify_create_failure(
         assert isinstance(error, AndroidEmulatorError)
         return error
     # The honest fallback, not the default (Rule 1 §3).
+    return CommandFailedError(result)
+
+
+def classify_rename_failure(
+    request: RenameEmulatorRequest, result: CommandResult, avd_home: Path
+) -> AndroidEmulatorError:
+    """Map a failed ``avdmanager move avd`` onto a typed error.
+
+    The two failures worth naming are the two the caller can act on: the target
+    name is taken (pick another), or the source is gone (list them again). Note
+    which name each error carries -- a collision is about ``new_name`` and a
+    missing AVD is about ``name``, and reporting the wrong one sends the caller
+    to fix the wrong argument.
+    """
+    lowered = result.output.lower()
+    for markers, build in RENAME_FAILURES:
+        if not _matches(lowered, markers):
+            continue
+        error = build(request, avd_home)
+        assert isinstance(error, AndroidEmulatorError)
+        return error
     return CommandFailedError(result)
 
 

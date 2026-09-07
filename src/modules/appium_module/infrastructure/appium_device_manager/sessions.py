@@ -38,7 +38,7 @@ from selenium.common.exceptions import (
 from selenium.webdriver.support import expected_conditions as expected
 from selenium.webdriver.support.ui import WebDriverWait
 
-from ...domain.models import AppiumSession, StartSessionRequest
+from ...domain.models import FOCUSED_STRATEGY, AppiumSession, StartSessionRequest
 from .config import AppiumConfig
 from .errors import (
     AppiumComponentError,
@@ -168,6 +168,30 @@ class SessionRegistry:
                 raise ElementLookupError(strategy, selector, timeout_seconds) from exc
 
         return await self.call(session_id, "find_element", locate, timeout_seconds=timeout_seconds)
+
+    async def focused_element(self, session_id: str) -> Any:
+        """The element that currently holds input focus.
+
+        There is nothing to wait for -- either something has focus at this
+        instant or nothing does -- so this asks once and reports
+        :class:`ElementLookupError` with a zero timeout, the same way
+        :meth:`find_element` reports a lookup that was told not to wait.
+
+        UiAutomator2 answers "no such element" when no view is focused, which is
+        the ordinary state of a launcher screen rather than a broken device.
+        Left untranslated it arrives as a generic interaction failure carrying a
+        Selenium stacktrace; classified here it is the same
+        :class:`~...domain.errors.ElementNotFound` a bad locator raises, and the
+        remedy is the one the caller can act on -- tap a field first.
+        """
+
+        def locate(driver: Any) -> Any:
+            try:
+                return driver.switch_to.active_element
+            except NoSuchElementException as exc:
+                raise ElementLookupError(FOCUSED_STRATEGY, "", 0.0) from exc
+
+        return await self.call(session_id, "focused_element", locate)
 
     # -- lifecycle ---------------------------------------------------------
 

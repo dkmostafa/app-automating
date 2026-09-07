@@ -46,13 +46,13 @@ pytestmark = pytest.mark.unit
 
 
 def _session(**kwargs) -> AppiumSession:
-    return AppiumSession(
+    defaults: dict = dict(
         session_id="8f2c",
         device_id="emulator-5554",
         platform_name="Android",
         automation_name="UiAutomator2",
-        **kwargs,
     )
+    return AppiumSession(**{**defaults, **kwargs})
 
 
 # -- the host --------------------------------------------------------------

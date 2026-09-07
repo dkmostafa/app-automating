@@ -24,6 +24,7 @@ __all__ = [
     "StartEmulatorRequest",
     "StopEmulatorRequest",
     "DeleteEmulatorRequest",
+    "RenameEmulatorRequest",
     # results and value objects
     "AndroidDevice",
     "AvdInfo",
@@ -34,6 +35,7 @@ __all__ = [
     "StartEmulatorResult",
     "StopEmulatorResult",
     "DeleteEmulatorResult",
+    "RenameEmulatorResult",
 ]
 
 
@@ -128,6 +130,28 @@ class DeleteEmulatorRequest:
     #: Stop the AVD first if it is running. Without it a running AVD raises
     #: :class:`~.errors.EmulatorInUse` rather than being deleted out from
     #: under itself.
+    stop_if_running: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class RenameEmulatorRequest:
+    """Input for :meth:`EmulatorLifecycle.rename_emulator`.
+
+    There is deliberately no "move the payload directory too" flag. The backend
+    moves ``<name>.avd`` to ``<new_name>.avd`` and rewrites the ``.ini``'s
+    ``path=`` as part of the rename, so a flag would only offer callers the
+    chance to leave the two disagreeing.
+    """
+
+    name: str
+    #: The name the AVD should have afterwards. Same alphabet as
+    #: :attr:`CreateEmulatorRequest.name`, and it must not already be taken --
+    #: including by this AVD, so renaming something to its current name is
+    #: :class:`~.errors.EmulatorAlreadyExists` rather than a silent no-op.
+    new_name: str
+    #: Stop the AVD first if it is running. Without it a running AVD raises
+    #: :class:`~.errors.EmulatorInUse`: a rename moves the payload directory,
+    #: and moving it out from under a live emulator corrupts the device.
     stop_if_running: bool = False
 
 
@@ -259,5 +283,20 @@ class DeleteEmulatorResult:
     #: The payload directory that was removed.
     deleted_path: Path | None
     #: True when the AVD had to be stopped first.
+    stopped_first: bool
+    duration_seconds: float
+
+
+@dataclass(frozen=True, slots=True)
+class RenameEmulatorResult:
+    #: What the AVD is called now. ``name`` means the same thing on every result
+    #: in this file, which is why the old one is the field that got a prefix.
+    name: str
+    previous_name: str
+    #: The payload directory now. The backend moves it as part of the rename, so
+    #: this is read back from disk rather than assumed from the new name.
+    path: Path
+    previous_path: Path | None
+    #: True when the AVD was running and had to be shut down first.
     stopped_first: bool
     duration_seconds: float

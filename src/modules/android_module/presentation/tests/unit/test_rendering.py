@@ -20,6 +20,7 @@ from modules.android_module.domain.models import (
     InstallSystemImageResult,
     ListDevicesResult,
     ListEmulatorsResult,
+    RenameEmulatorResult,
     StartEmulatorResult,
     StopEmulatorResult,
 )
@@ -30,6 +31,7 @@ from modules.android_module.presentation.rendering import (
     render_device,
     render_device_list,
     render_installed_image,
+    render_renamed_emulator,
     render_started_emulator,
     render_stopped_emulator,
 )
@@ -239,3 +241,44 @@ def test_every_payload_is_json_serialisable() -> None:
         )
     )
     assert json.loads(payload.model_dump_json())["devices"][0]["device_id"] == "emulator-5554"
+
+
+def test_a_renamed_emulator_reports_both_names_and_both_paths() -> None:
+    """The docstring's Returns example and this assertion are the same payload."""
+    payload = render_renamed_emulator(
+        RenameEmulatorResult(
+            name="Pixel_7_Regression",
+            previous_name="Pixel_7_API_34",
+            path=Path("/home/u/.android/avd/Pixel_7_Regression.avd"),
+            previous_path=Path("/home/u/.android/avd/Pixel_7_API_34.avd"),
+            stopped_first=False,
+            duration_seconds=0.3,
+        )
+    )
+
+    assert payload.model_dump() == {
+        "name": "Pixel_7_Regression",
+        "previous_name": "Pixel_7_API_34",
+        "path": "/home/u/.android/avd/Pixel_7_Regression.avd",
+        "previous_path": "/home/u/.android/avd/Pixel_7_API_34.avd",
+        "stopped_first": False,
+        "duration_seconds": 0.3,
+    }
+
+
+def test_a_rename_renders_paths_as_strings_not_path_objects() -> None:
+    """A Path is not JSON; this is the one reason the renderer exists."""
+    payload = render_renamed_emulator(
+        RenameEmulatorResult(
+            name="new",
+            previous_name="old",
+            path=Path("/avd/new.avd"),
+            previous_path=None,
+            stopped_first=True,
+            duration_seconds=0.1,
+        )
+    )
+
+    assert isinstance(payload.path, str)
+    assert payload.previous_path is None
+    assert payload.stopped_first is True

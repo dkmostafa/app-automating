@@ -275,6 +275,42 @@ async def test_delete_emulator_can_stop_the_avd_first(
     assert emulators.delete_emulator.await_args.args[0].stop_if_running is True
 
 
+async def test_rename_emulator_passes_both_names_through(
+    service: AndroidEmulatorService, emulators: AsyncMock
+) -> None:
+    result = await service.rename_emulator("old", "new")
+
+    request = emulators.rename_emulator.await_args.args[0]
+    assert (request.name, request.new_name) == ("old", "new")
+    assert result is emulators.rename_emulator.return_value
+
+
+async def test_rename_emulator_refuses_a_running_avd_unless_told_otherwise(
+    service: AndroidEmulatorService, emulators: AsyncMock
+) -> None:
+    """Stricter than deleting: the payload directory moves under a live device."""
+    await service.rename_emulator("old", "new")
+
+    assert emulators.rename_emulator.await_args.args[0].stop_if_running is False
+
+
+async def test_rename_emulator_can_stop_the_avd_first(
+    service: AndroidEmulatorService, emulators: AsyncMock
+) -> None:
+    await service.rename_emulator("old", "new", stop_if_running=True)
+
+    assert emulators.rename_emulator.await_args.args[0].stop_if_running is True
+
+
+async def test_rename_emulator_awaits_the_port_exactly_once(
+    service: AndroidEmulatorService, emulators: AsyncMock
+) -> None:
+    """No read-back, no verification pass: one intent, one port call."""
+    await service.rename_emulator("old", "new")
+
+    emulators.rename_emulator.assert_awaited_once()
+
+
 # -- the layering itself ---------------------------------------------------
 
 

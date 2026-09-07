@@ -19,6 +19,7 @@ import inspect
 import pytest
 
 from modules.appium_module.domain.errors import (
+    ElementNotFound,
     InvalidCoordinates,
     InvalidDeviceId,
     InvalidKeyName,
@@ -27,6 +28,7 @@ from modules.appium_module.domain.errors import (
     SessionNotFound,
 )
 from modules.appium_module.domain.models import (
+    FOCUSED_STRATEGY,
     CheckEnvironmentRequest,
     GetPageSourceRequest,
     InstallDriverRequest,
@@ -337,15 +339,33 @@ async def test_pressing_back_is_accepted_and_names_the_keycode(
     assert "keycode 4" in result.detail
 
 
-async def test_typing_into_no_particular_field_reports_the_focused_form(
+async def test_typing_with_no_locator_and_nothing_focused_says_so(
     manager: AppiumDeviceManager, session: str
 ) -> None:
-    """Without a locator the text goes to whatever has focus, and the result says
-    so rather than inventing a selector."""
-    result = await manager.type_text(TypeTextRequest(session_id=session, text=""))
+    """The locator-free form against a screen where nothing holds focus.
 
-    assert result.strategy == "focused"
-    assert result.selector == ""
+    The home screen is the one input state this suite can put a real device into
+    on demand, and on it nothing is focused -- so this is the error path, tested
+    for real (Rule 1 §6). The device answers "no such element", and the point of
+    the assertion is that it arrives as ``ElementNotFound`` naming the focused
+    form, not as a generic ``InteractionFailed`` carrying a Selenium stacktrace.
+
+    The success path -- text landing in the focused field and coming back as
+    ``strategy="focused"`` -- is deliberately not tested here: it needs an app
+    with a focused text field, which this suite does not install, and faking one
+    would test the fake. ``presentation/tests/unit/test_rendering.py`` covers the
+    payload that path produces.
+    """
+    await manager.press_key(PressKeyRequest(session_id=session, key="home"))
+
+    with pytest.raises(ElementNotFound) as excinfo:
+        await manager.type_text(TypeTextRequest(session_id=session, text=""))
+
+    assert excinfo.value.strategy == FOCUSED_STRATEGY
+    assert excinfo.value.selector == ""
+    # Nothing was waited for: focus is a fact about this instant, not something
+    # that arrives if you keep asking.
+    assert excinfo.value.timeout_seconds == 0.0
 
 
 async def test_verifying_a_live_session_keeps_it_in_the_list(

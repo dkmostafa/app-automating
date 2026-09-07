@@ -981,14 +981,17 @@ def register_appium_device_tools(mcp: FastMCP, service: AppiumDeviceService) -> 
 
         Errors
         ------
-        `ElementNotFound`: the field was not found. Call
-        `appium_get_page_source` and use a selector from it.
+        `ElementNotFound`: with a locator, the field was not found -- call
+        `appium_get_page_source` and use a selector from it. Without one, the
+        strategy comes back as `focused` and it means nothing on the screen held
+        focus at all: tap the field with `appium_tap_element` first, then retry.
         `InvalidLocator`: only one of `strategy` and `selector` was given, or
         the strategy is unsupported. Pass both or neither.
         `SessionNotFound` / `SessionExpired`: the session is gone. Check
         `appium_get_open_sessions` or start a new session.
-        `InteractionFailed`: the field refused the text -- it may be read-only
-        or not actually focused. Tap it first, then retry.
+        `InteractionFailed`: the field was there and refused the text -- it is
+        most likely read-only. Look at it with `appium_take_screenshot` before
+        retrying.
 
         Example
         -------

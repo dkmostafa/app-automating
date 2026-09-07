@@ -13,6 +13,12 @@ Appium CLI, a subprocess or a URL. Swap the ports for a device cloud and the
 service is unchanged -- and because the ports are segregated (Rule 0 §3), what
 it holds is exactly the authority it needs and no more.
 
+This service keeps no record of what it did. It drives the device and returns
+what happened; nothing about persistence, journaling or a navigation map is
+visible from here. A caller that wants a record of every gesture gets one by
+decorating the ports this class is built from, at the composition root -- this
+file, and everything below it, stays ignorant that such a thing exists.
+
 The operations fall into the order a caller meets them: check the host, open a
 session, read the screen, drive it, close the session.
 """
@@ -117,16 +123,17 @@ class AppiumDeviceService:
         install, an installed package to launch, or nothing at all, which
         attaches to whatever is already on screen.
         """
-        return await self._sessions.start_session(
+        result = await self._sessions.start_session(
             StartSessionRequest(
                 device_id=device_id,
                 app_path=app_path,
-                app_package=app_package,
                 app_activity=app_activity,
+                app_package=app_package,
                 no_reset=no_reset,
                 startup_timeout_seconds=startup_timeout_seconds,
             )
         )
+        return result
 
     async def end_session(self, session_id: str) -> EndSessionResult:
         """Close a session and release the device it was holding.

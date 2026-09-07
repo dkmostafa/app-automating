@@ -20,6 +20,12 @@ order a caller meets them:
 A use case that only wants to read a screen takes :class:`ScreenInspector` and
 is then structurally incapable of tapping anything. One class may satisfy all
 four; that is the adapter's business, not the caller's.
+
+This module keeps no memory of what it did and no notion that anything else
+might want one -- driving a device is the whole job. A caller that wants a
+record of every gesture builds it by decorating these same ports at the
+composition root (see ``application/di.py``'s ``decorate`` hook); nothing in
+this file or in ``AppiumDeviceService`` is aware that can happen.
 """
 
 from __future__ import annotations

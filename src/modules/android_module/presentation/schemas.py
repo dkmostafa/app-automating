@@ -27,6 +27,7 @@ __all__ = [
     "StoppedEmulatorPayload",
     "CreatedEmulatorPayload",
     "DeletedEmulatorPayload",
+    "RenamedEmulatorPayload",
     "InstalledImagePayload",
 ]
 
@@ -178,6 +179,23 @@ class DeletedEmulatorPayload(_Payload):
     )
     stopped_first: bool = Field(
         description="True when the AVD was running and had to be shut down before deletion."
+    )
+    duration_seconds: float = Field(description="Wall-clock time this call took.")
+
+
+class RenamedEmulatorPayload(_Payload):
+    """The result of renaming an AVD. Everything on the device survived."""
+
+    name: str = Field(description="What the AVD is called now. Use this name from here on.")
+    previous_name: str = Field(description="What it was called before this call.")
+    path: str = Field(
+        description="The AVD's payload directory now. It is moved as part of the rename."
+    )
+    previous_path: str | None = Field(
+        default=None, description="Where that directory used to be, when it is known."
+    )
+    stopped_first: bool = Field(
+        description="True when the AVD was running and had to be shut down before renaming."
     )
     duration_seconds: float = Field(description="Wall-clock time this call took.")
 

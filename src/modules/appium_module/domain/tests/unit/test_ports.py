@@ -91,7 +91,7 @@ def test_an_object_satisfies_a_port_without_inheriting_from_it() -> None:
         async def get_page_source(self, request): ...
 
     assert isinstance(NotADescendant(), ScreenInspector)
-    assert not issubclass(NotADescendant, ScreenInspector)
+    assert ScreenInspector not in NotADescendant.__mro__
 
 
 def test_a_partial_implementation_does_not_satisfy_a_port() -> None:

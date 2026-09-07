@@ -27,6 +27,8 @@ from ...domain.models import (
     ListDevicesResult,
     ListEmulatorsRequest,
     ListEmulatorsResult,
+    RenameEmulatorRequest,
+    RenameEmulatorResult,
     StartEmulatorRequest,
     StartEmulatorResult,
     StopEmulatorRequest,
@@ -246,4 +248,32 @@ class AndroidEmulatorService:
         """
         return await self._emulators.delete_emulator(
             DeleteEmulatorRequest(name=name, stop_if_running=stop_if_running)
+        )
+
+    async def rename_emulator(
+        self, name: str, new_name: str, *, stop_if_running: bool = False
+    ) -> RenameEmulatorResult:
+        """Give an existing AVD a different name, keeping everything on it.
+
+        The opposite of :meth:`delete_emulator` in cost: nothing is recreated
+        and nothing is lost -- snapshots, installed apps, userdata and sdcard
+        all survive, because the AVD's payload directory is moved rather than
+        rebuilt. Only the name changes.
+
+        Renaming to a name that is already taken raises, and that includes the
+        AVD's own current name: a rename that changes nothing is a mistake worth
+        reporting rather than a call worth pretending succeeded.
+
+        ``stop_if_running`` shuts the AVD down first. Without it a running AVD
+        raises, which is the safer default here for a stronger reason than in
+        :meth:`delete_emulator` -- the payload directory moves during a rename,
+        and moving it out from under a live emulator corrupts the device rather
+        than merely surprising its user.
+
+        Note that a running emulator's device serial is unaffected either way: a
+        serial is assigned from the console port at boot and has never been
+        derived from the AVD's name.
+        """
+        return await self._emulators.rename_emulator(
+            RenameEmulatorRequest(name=name, new_name=new_name, stop_if_running=stop_if_running)
         )

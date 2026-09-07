@@ -1,6 +1,6 @@
 """The Android emulator surface, as MCP tools.
 
-Nine tools covering one workflow, in the order they are normally called:
+Ten tools covering one workflow, in the order they are normally called:
 
 1. ``android_get_installed_emulators`` -- what AVDs exist on this host at all.
 2. ``android_get_available_devices`` / ``android_get_all_devices`` -- what is
@@ -10,15 +10,18 @@ Nine tools covering one workflow, in the order they are normally called:
 4. ``android_run_emulator`` or ``android_run_emulator_without_window`` -- boot
    one, and get back the ``device_id`` every later device operation needs.
 5. ``android_stop_emulator`` -- shut it down, leaving the AVD on disk.
-6. ``android_delete_emulator`` -- remove the AVD itself, irreversibly.
+6. ``android_rename_emulator`` -- change an AVD's name, keeping everything on it.
+7. ``android_delete_emulator`` -- remove the AVD itself, irreversibly.
 
 What they share: an **AVD name** identifies a virtual device *definition* on
 disk and is what the create/start/delete tools take; a **device_id** (an adb
 serial such as ``emulator-5554``) identifies a *running* device and is what the
 stop tool takes. The two are not interchangeable, and only a running emulator
-has both. Everything here needs a working Android SDK on the host running this
-server: if that is missing, every tool fails with ``BackendUnavailable`` and no
-retry will help.
+has both. Renaming changes the first and never the second: a serial comes from
+the console port the emulator grabbed at boot, not from the AVD's name.
+Everything here needs a working Android SDK on the host running this server: if
+that is missing, every tool fails with ``BackendUnavailable`` and no retry will
+help.
 
 Layering (Rule 0 §1, Rule 3): every tool below is three statements -- build the
 call from its arguments, await one service method, render the result. There is
@@ -38,6 +41,7 @@ from .rendering import (
     render_deleted_emulator,
     render_device_list,
     render_installed_image,
+    render_renamed_emulator,
     render_started_emulator,
     render_stopped_emulator,
 )
@@ -47,6 +51,7 @@ from .schemas import (
     DeletedEmulatorPayload,
     DeviceListPayload,
     InstalledImagePayload,
+    RenamedEmulatorPayload,
     StartedEmulatorPayload,
     StoppedEmulatorPayload,
 )
@@ -702,6 +707,99 @@ def register_android_emulator_tools(mcp: FastMCP, service: AndroidEmulatorServic
                 replace_existing=replace_existing,
             )
         return render_created_emulator(result)
+
+    @mcp.tool(name="android_rename_emulator")
+    async def rename_emulator(
+        avd_name: str, new_avd_name: str, stop_if_running: bool = False
+    ) -> RenamedEmulatorPayload:
+        """Give an existing AVD a different name, keeping everything on it.
+
+        What it does
+        ------------
+        Renames the AVD definition and moves its payload directory to match, so
+        ``<old>.avd`` becomes ``<new>.avd`` and the AVD's internal path record is
+        rewritten to agree. Nothing on the device is touched: snapshots,
+        installed apps, userdata and the SD card all survive, because the
+        directory is moved rather than rebuilt. Fast -- well under a second,
+        since no data is copied. After this call the old name no longer exists
+        and every later tool must use the new one.
+
+        When to use it
+        --------------
+        Use it when the user wants an AVD called something else -- a clearer
+        name, a naming convention, a typo at creation time. Call
+        ``android_get_installed_emulators`` first to confirm the exact current
+        name and to check that the new one is not already taken.
+
+        When not to use it
+        ------------------
+        Do not use it to make a copy under a new name: this moves the AVD, it
+        does not duplicate it, and the old name is gone afterwards. Use
+        ``android_create_device`` for a second device. Do not use it to change
+        an emulator's ``device_id`` -- that is an adb serial assigned from the
+        console port at boot, it is not derived from the AVD name, and no tool
+        can set it. Do not reach for this to reset a device's contents; a start
+        tool's ``wipe_data`` does that.
+
+        Arguments
+        ---------
+        avd_name:
+            The exact current name of the AVD, as listed by
+            ``android_get_installed_emulators``. Case-sensitive, no partial
+            matching.
+        new_avd_name:
+            The name it should have afterwards. Letters, digits, dots,
+            underscores and hyphens only -- the same alphabet
+            ``android_create_device`` accepts. It must not already belong to
+            another AVD, and it must differ from ``avd_name``: renaming
+            something to its current name fails with
+            ``EmulatorAlreadyExists`` rather than quietly doing nothing.
+        stop_if_running:
+            True shuts the AVD down first if it is running, then renames it.
+            Defaults to False, which fails with ``EmulatorInUse`` instead. The
+            default matters more here than when deleting: the payload directory
+            moves during a rename, and moving it out from under a live emulator
+            corrupts the device.
+
+        Returns
+        -------
+        ``{"name": "Pixel_7_Regression", "previous_name": "Pixel_7_API_34",
+        "path": "/home/u/.android/avd/Pixel_7_Regression.avd",
+        "previous_path": "/home/u/.android/avd/Pixel_7_API_34.avd",
+        "stopped_first": false, "duration_seconds": 0.3}``
+
+        ``name`` is what the AVD is called now and is the name every later call
+        must use. ``stopped_first: true`` means it was running and was shut down
+        as part of this call, so it needs booting again before it can be driven.
+
+        Errors
+        ------
+        ``EmulatorNotFound``: no AVD by ``avd_name`` on this host. List them and
+        retry with a name from that list; do not guess a near spelling.
+        ``EmulatorAlreadyExists``: ``new_avd_name`` is taken -- possibly by this
+        same AVD, if the two names are equal. Pick a different name; this tool
+        will not overwrite another AVD.
+        ``InvalidEmulatorName``: one of the names is not in the permitted
+        alphabet. Fix the characters rather than retrying unchanged.
+        ``EmulatorInUse``: it is running. Stop it with ``android_stop_emulator``,
+        or pass ``stop_if_running=True``.
+        ``BackendUnavailable``: no usable Android SDK on this host. Nothing to
+        retry -- report it to the user.
+
+        Example
+        -------
+        ``android_rename_emulator(avd_name="Pixel_7_API_34",
+        new_avd_name="Pixel_7_Regression")``
+        -> ``{"name": "Pixel_7_Regression", "previous_name": "Pixel_7_API_34",
+        "path": "/home/u/.android/avd/Pixel_7_Regression.avd",
+        "previous_path": "/home/u/.android/avd/Pixel_7_API_34.avd",
+        "stopped_first": false, "duration_seconds": 0.3}``
+        """
+        with domain_errors_as_tool_errors():
+            result = await service.rename_emulator(
+                avd_name, new_avd_name, stop_if_running=stop_if_running
+            )
+        return render_renamed_emulator(result)
 
     @mcp.tool(name="android_delete_emulator")
     async def delete_emulator(

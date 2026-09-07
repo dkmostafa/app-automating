@@ -85,9 +85,10 @@ class AppiumToolNotFoundError(AppiumComponentError, BackendUnavailable):
 
     def __init__(self, tool: str, searched: str) -> None:
         Exception.__init__(self, tool, searched)
-        BackendUnavailable.__init__(self, tool, f"looked for {searched}")
         self.tool = tool
         self.searched = searched
+        self.what = tool
+        self.detail = f"looked for {searched}"
 
     def __str__(self) -> str:
         return f"{self.tool!r} was not found (looked for {self.searched})"
@@ -101,8 +102,9 @@ class CommandFailedError(AppiumComponentError, BackendFailure):
     """
 
     def __init__(self, operation: str, result: CommandResult) -> None:
+        if not isinstance(result, CommandResult):
+            raise TypeError(f"result must be CommandResult, got {type(result).__name__!r}")
         Exception.__init__(self, operation, result)
-        BackendFailure.__init__(self, operation, result.tail)
         self.operation = operation
         self.result = result
 
@@ -118,10 +120,10 @@ class CommandTimeoutError(AppiumComponentError, BackendFailure):
 
     def __init__(self, operation: str, argv: tuple[str, ...], timeout_seconds: float) -> None:
         Exception.__init__(self, operation, argv, timeout_seconds)
-        BackendFailure.__init__(self, operation, f"timed out after {timeout_seconds}s")
         self.operation = operation
         self.argv = argv
         self.timeout_seconds = timeout_seconds
+        self.detail = f"timed out after {timeout_seconds}s"
 
     def __str__(self) -> str:
         return (
@@ -143,19 +145,25 @@ class ServerNotReadyError(AppiumComponentError, ServerStartFailed):
 
     def __init__(self, url: str, timeout_seconds: float, log_tail: str = "") -> None:
         Exception.__init__(self, url, timeout_seconds, log_tail)
-        ServerStartFailed.__init__(
-            self, url, f"still not answering after {timeout_seconds}s", log_tail
-        )
+        self.url = url
         self.timeout_seconds = timeout_seconds
+        self.log_tail = log_tail
+        self.detail = f"still not answering after {timeout_seconds}s"
 
 
 class DriverInstallCommandError(AppiumComponentError, DriverInstallFailed):
     """``appium driver install`` exited non-zero."""
 
     def __init__(self, driver_name: str, result: CommandResult) -> None:
+        if not isinstance(result, CommandResult):
+            raise TypeError(f"result must be CommandResult, got {type(result).__name__!r}")
         Exception.__init__(self, driver_name, result)
-        DriverInstallFailed.__init__(self, driver_name, result.tail)
+        self.driver_name = driver_name
         self.result = result
+
+    @property
+    def detail(self) -> str:
+        return self.result.tail
 
 
 class SessionCreateError(AppiumComponentError, SessionStartFailed):
