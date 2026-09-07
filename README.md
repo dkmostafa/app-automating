@@ -326,18 +326,7 @@ to `sdkmanager`, and `appium_install_driver`, which shells out to `npm`.
 
 ## Install
 
-> [!NOTE]
-> **Not on PyPI yet.** Until the first release is tagged, install from the
-> repository — the two commands below it will start working the moment `v0.1.0`
-> is published.
-
-### From the repository
-
-```bash
-uvx --from git+https://github.com/dkmostafa/app-automating app-automating
-```
-
-### As a tool, once released
+### As a tool (recommended)
 
 ```bash
 uv tool install app-automating
@@ -347,6 +336,14 @@ Or run it without installing anything permanent:
 
 ```bash
 uvx app-automating
+```
+
+### From the repository
+
+For an unreleased commit:
+
+```bash
+uvx --from git+https://github.com/dkmostafa/app-automating app-automating
 ```
 
 ### From a clone, for development
@@ -368,12 +365,6 @@ fronts drive every attached device with no authentication of any kind.
 
 ```bash
 claude mcp add app-automating -- uvx app-automating
-```
-
-Before the first PyPI release, point it at the repository instead:
-
-```bash
-claude mcp add app-automating -- uvx --from git+https://github.com/dkmostafa/app-automating app-automating
 ```
 
 ### Claude Desktop, Cursor, and other clients that read a JSON config

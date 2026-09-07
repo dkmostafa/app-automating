@@ -35,6 +35,9 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Install dependencies
+        run: uv sync --frozen
+
       # The version lives in src/app_automating/__init__.py and nowhere else.
       # A tag that disagrees with it would publish a wheel whose number does not
       # match the commit it came from, so it fails here instead.
@@ -70,10 +73,16 @@ jobs:
           path: dist/
 
   testpypi:
-    name: publish to TestPyPI
+    name: publish to TestPyPI (rehearsal, non-blocking)
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || inputs.target == 'TestPyPI'
+    # A rehearsal that can veto the performance is worse than no rehearsal. This
+    # stage is a courtesy: it needs a *separate* TestPyPI account with its own
+    # pending publisher, and until that exists it fails here and the release
+    # carries on regardless. Set it up and the warning starts working; leave it
+    # and a red square on this job means nothing more than "not configured".
+    continue-on-error: true
     environment:
       name: testpypi
       url: https://test.pypi.org/p/app-automating
@@ -94,9 +103,22 @@ jobs:
 
   pypi:
     name: publish to PyPI
-    needs: testpypi
+    needs: [build, testpypi]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || inputs.target == 'PyPI'
+    # A dependency that is skipped -- or that failed -- skips the dependent job
+    # whatever its own `if` says, and without `!cancelled()` the `if` is not
+    # evaluated at all. So every acceptable outcome of the rehearsal is spelled
+    # out, and only `build` is allowed to stop the release:
+    #   tag push           -> testpypi ran (pass or fail), publish
+    #   dispatch: PyPI     -> testpypi skipped,            publish
+    #   dispatch: TestPyPI -> stop here
+    # The rehearsal's own result is deliberately not tested: `continue-on-error`
+    # already reports it as `success`, and this job must survive it being
+    # skipped too.
+    if: >-
+      !cancelled()
+      && needs.build.result == 'success'
+      && (github.event_name == 'push' || inputs.target == 'PyPI')
     environment:
       # Give this environment a required reviewer in the repository settings and
       # every release stops here for a human to approve before it is public.
@@ -117,7 +139,12 @@ jobs:
     name: attach the artifacts to the tag
     needs: pypi
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Only a tag has something to attach to, and only a real PyPI publish is
+    # worth announcing -- so this stays skipped for a TestPyPI rehearsal.
+    if: >-
+      !cancelled()
+      && needs.pypi.result == 'success'
+      && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     steps:

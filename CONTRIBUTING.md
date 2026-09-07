@@ -134,8 +134,9 @@ parts a workflow cannot do for you.
 
 There is no API token anywhere in this repository, and there should never be
 one. PyPI mints a short-lived credential for this exact workflow instead. Add a
-*pending publisher* on both indexes — [PyPI](https://pypi.org/manage/account/publishing/)
-and [TestPyPI](https://test.pypi.org/manage/account/publishing/) — with:
+*pending publisher* at
+[pypi.org/manage/account/publishing](https://pypi.org/manage/account/publishing/)
+with:
 
 | Field | Value |
 |---|---|
@@ -143,11 +144,20 @@ and [TestPyPI](https://test.pypi.org/manage/account/publishing/) — with:
 | Owner | `dkmostafa` |
 | Repository | `app-automating` |
 | Workflow name | `release.yml` |
-| Environment | `pypi` on PyPI, `testpypi` on TestPyPI |
+| Environment | `pypi` |
 
-Then create those two environments under **Settings → Environments** in the
-repository. Adding a required reviewer to `pypi` makes every release pause for a
+Then create a `pypi` environment under **Settings → Environments** in the
+repository. Adding a required reviewer to it makes every release pause for a
 human before it becomes public, which is worth the two seconds.
+
+**TestPyPI is optional.** It is a separate service with its own account, and the
+rehearsal job is marked `continue-on-error`, so a release does not need it and
+does not wait on it. If you want the rehearsal — it catches a broken Trusted
+Publishing setup before the irreversible upload — register at
+[test.pypi.org](https://test.pypi.org/account/register/), add the same pending
+publisher there with environment `testpypi`, and create that environment too.
+Until then the `publish to TestPyPI` job shows red on every release and means
+nothing more than "not configured".
 
 ### Each release
 
@@ -161,8 +171,10 @@ human before it becomes public, which is worth the two seconds.
 
 The workflow then checks the tag against `__version__` and refuses to publish if
 they disagree, runs lint and `pytest -m unit`, builds, checks the metadata with
-`twine`, publishes to TestPyPI, publishes to PyPI, and attaches the artifacts to
-a generated GitHub release.
+`twine`, rehearses on TestPyPI if that is configured, publishes to PyPI, and
+attaches the artifacts to a generated GitHub release.
+
+Only the build job can stop a release. A failing rehearsal cannot.
 
 To rehearse without tagging anything, run the workflow manually from the Actions
 tab and choose `TestPyPI`.
