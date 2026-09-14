@@ -99,15 +99,15 @@ dev = [
 
 [[package]]
 name = "appium-python-client"
-version = "6.0.0"
+version = "6.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "selenium" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/81/5f/f1e612fc7d7ed7f1a3583e727cdbc4ca9a51091a11601ec346270c11667f/appium_python_client-6.0.0.tar.gz", hash = "sha256:1a8bc4f47a3ecff05981d95dac67927c5ea99031da02343500152b7c801bb969", size = 236071, upload-time = "2026-08-08T07:19:30.737Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/10/5d/7268cd9efa340a6314523a54a777f6061e1ba8ebc2db9c99e1e8c0f70096/appium_python_client-6.0.5.tar.gz", hash = "sha256:c93d62c7fe57b75c43c4f802dac88955a4fa081ec7420b8b40b85a47a606ddce", size = 238089, upload-time = "2026-09-10T04:55:06.563Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/28/5e/d1aa34c96c7e7942f208ec383de14230f1a502e7b6657a2bfe6e5638e002/appium_python_client-6.0.0-py3-none-any.whl", hash = "sha256:609afe40bb19cd103653c1970e583115c8ba7db72ee58fdb14cb4591451df16d", size = 346131, upload-time = "2026-08-08T07:19:29.137Z" },
+    { url = "https://files.pythonhosted.org/packages/be/e8/ada65b50c91b211cbbf7e4f15ccb98ddb8dcecb620b343e2f1afc2b329e8/appium_python_client-6.0.5-py3-none-any.whl", hash = "sha256:6be8b77a57991b494dd81cfc16e6cf0d4ad9dc204998d23f5e292ff5a76ff331", size = 343250, upload-time = "2026-09-10T04:55:05.034Z" },
 ]
 
 [[package]]
@@ -1572,8 +1572,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography", marker = "sys_platform != 'win32'" },
-    { name = "jeepney", marker = "sys_platform != 'win32'" },
+    { name = "cryptography" },
+    { name = "jeepney" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
